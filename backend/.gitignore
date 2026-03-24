@@ -1,5 +1,4 @@
-node_modules/
+# Secrets locaux (jamais committer)
 .env
 .env.local
-*.log
-.DS_Store
+.env.*.local

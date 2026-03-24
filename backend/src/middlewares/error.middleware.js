@@ -2,7 +2,12 @@ const logger = require('../utils/logger');
 const { sendError } = require('../utils/response');
 
 function notFoundHandler(req, res) {
-  sendError(res, `Route introuvable : ${req.method} ${req.originalUrl}`, 404, 'NOT_FOUND');
+  sendError(
+    res,
+    `Route introuvable : ${req.method} ${req.originalUrl}`,
+    404,
+    'NOT_FOUND'
+  );
 }
 
 function errorHandler(err, req, res, next) {
@@ -10,7 +15,15 @@ function errorHandler(err, req, res, next) {
     return next(err);
   }
 
-  logger.error(err.message || 'Erreur serveur', { stack: err.stack });
+  logger.error(
+    {
+      err: err.message,
+      stack: err.stack,
+      method: req.method,
+      path: req.originalUrl,
+    },
+    'Erreur non gérée'
+  );
 
   const status = err.statusCode || err.status || 500;
   const message =

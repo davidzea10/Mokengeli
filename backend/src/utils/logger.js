@@ -1,26 +1,15 @@
+const pino = require('pino');
 const config = require('../config');
 
-function format(level, msg, meta) {
-  const line = `[${new Date().toISOString()}] [${level}] ${msg}`;
-  if (meta !== undefined) return `${line} ${JSON.stringify(meta)}`;
-  return line;
-}
+/**
+ * Logger structuré (Pino). Niveau : LOG_LEVEL ou debug hors production.
+ */
+const logger = pino({
+  level: process.env.LOG_LEVEL || (config.nodeEnv === 'production' ? 'info' : 'debug'),
+  base: {
+    service: 'mokengeli-backend',
+  },
+  timestamp: pino.stdTimeFunctions.isoTime,
+});
 
-module.exports = {
-  info: (msg, meta) => {
-    // eslint-disable-next-line no-console
-    console.log(format('INFO', msg, meta));
-  },
-  warn: (msg, meta) => {
-    console.warn(format('WARN', msg, meta));
-  },
-  error: (msg, meta) => {
-    console.error(format('ERROR', msg, meta));
-  },
-  debug: (msg, meta) => {
-    if (config.nodeEnv === 'development') {
-      // eslint-disable-next-line no-console
-      console.debug(format('DEBUG', msg, meta));
-    }
-  },
-};
+module.exports = logger;
