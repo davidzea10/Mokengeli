@@ -1,0 +1,87 @@
+{
+  "info": {
+    "name": "MOKENGELI API",
+    "description": "Collection API backend — préfixe /api/v1 (sauf Health racine).\nVariable `baseUrl` : http://localhost:3000 en local.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health (racine)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health",
+        "description": "GET /health — sans préfixe (healthcheck Render, etc.)"
+      }
+    },
+    {
+      "name": "Health API v1",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/health",
+        "description": "GET /api/v1/health — même payload que /health"
+      }
+    },
+    {
+      "name": "Supabase — ping (sans tables)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health/supabase",
+        "description": "GET — vérifie que le projet Supabase répond (Auth /health). Pas besoin de tables SQL."
+      }
+    },
+    {
+      "name": "Transactions — Evaluate",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"transaction_event\": {\n    \"metadata\": {\n      \"numero_transaction\": \"TXN-DEMO-001\",\n      \"id_client\": \"C-501\",\n      \"montant\": 45000,\n      \"devise\": \"CDF\",\n      \"type_transaction\": \"P2P\",\n      \"canal\": \"mobile\"\n    }\n  }\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/transactions/evaluate",
+        "description": "POST — validation Zod sur le corps"
+      }
+    },
+    {
+      "name": "Sessions — Upsert (stub)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"client_id\": \"C-501\",\n  \"canal\": \"mobile\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/sessions",
+        "description": "POST — session (stub)"
+      }
+    },
+    {
+      "name": "Admin — Liste transactions (stub)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/admin/transactions",
+        "description": "GET — liste vide + message stub"
+      }
+    }
+  ]
+}
