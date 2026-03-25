@@ -1,0 +1,57 @@
+{
+  "transaction_event": {
+    "metadata": {
+      "transaction_date": "timestamp",
+      "transaction_number": "string",
+      "client_id": "string",
+      "amount": "float",
+      "currency": "string",
+      "hour": "int",
+      "weekday": "int",
+      "transaction_type": "string",
+      "channel": "string"
+    },
+    "network_intelligence": {
+      "ip_reputation_score": "float",
+      "ip_datacenter": "boolean",
+      "unusual_country_ip": "boolean",
+      "ip_blacklisted": "boolean"
+    },
+    "anonymization_detection": {
+      "tor_detected": "boolean",
+      "vpn_detected": "boolean",
+      "proxy_detected": "boolean"
+    },
+    "behavioral_biometrics_ueba": {
+      "session_duration_min": "float",
+      "session_screens_count": "int",
+      "otp_delay_s": "float",
+      "failed_logins_24h": "int",
+      "typing_speed": "float",
+      "mouse_entropy": "float",
+      "requests_per_minute": "int"
+    },
+    "engineered_features_profiling": {
+      "velocity_24h": "float",
+      "amount_median_ratio_30d": "float",
+      "new_beneficiary": "boolean",
+      "habit_distance_km": "float",
+      "device_change": "boolean"
+    },
+    "relational_graph_features": {
+      "client_degree": "int",
+      "fraudulent_neighbors_count": "int",
+      "network_score": "float"
+    },
+    "security_integrity": {
+      "transaction_signature_valid": "boolean",
+      "certificate_valid": "boolean",
+      "client_api_trust_score": "float"
+    }
+  },
+  "target_labels": {
+    "fraud_target": "boolean",
+    "abnormal_session_target": "boolean",
+    "atypical_behavior_target": "boolean"
+  }
+}
