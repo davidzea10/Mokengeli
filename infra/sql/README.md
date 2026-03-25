@@ -5,6 +5,8 @@
 | 1 | **`001_mokengeli_schema.sql`** | Tables alignées sur `Docs/StructureBdd.tex`, `analyst_feedback`, `policy_config` |
 | 2 | **`002_profiling_aggregates.sql`** | Index, fonctions d’agrégats (vitesse 24 h, médiane 30 j, graphe, vue journalière) |
 | 3 | **`003_integrity_verification.sql`** | Inventaire contraintes (FK, UNIQUE) + tests négatifs `numero_transaction` / FK (transaction rollback) |
+| 4 | **`004_beneficiaires.sql`** | Table `beneficiaires` (banque ou mobile money) + `transactions.beneficiaire_id` |
+| 5 | **`005_auth_solde_geo.sql`** | `clients` : nom, `password_hash`, adresse ; `comptes_bancaires` : `solde_disponible` ; `transactions` : lat/long débit & crédit |
 
 Copie miroir des références : `docs/sql/README.md` pointe ici.
 
@@ -20,7 +22,7 @@ Vérification : exécuter **`003`** (sections A–B = lecture ; section C = test
 ## Exécution (Supabase)
 
 1. Dashboard Supabase → **SQL Editor** → **New query**.
-2. Exécuter **`001`**, puis **`002`**, puis **`003`** (optionnel, après coup pour valider l’intégrité).
+2. Chaîne typique : **`001`** → **`002`** → **`003`** (optionnel) → **`004`** (optionnel) → **`005`** (auth, solde, géo).
 3. Extension **`pgcrypto`** : si erreur sur `CREATE EXTENSION`, activer dans **Database → Extensions**, ou retirer la ligne si `gen_random_uuid` est déjà disponible.
 
 Base vide recommandée pour le **001** (pas de `DROP`). Le **002** peut être rejoué si les objets utilisent `CREATE OR REPLACE` / `IF NOT EXISTS` (indexes).

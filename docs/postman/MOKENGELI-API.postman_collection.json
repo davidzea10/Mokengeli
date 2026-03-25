@@ -1,13 +1,25 @@
 {
   "info": {
     "name": "MOKENGELI API",
-    "description": "Collection API backend — préfixe /api/v1 (sauf Health racine).\nVariable `baseUrl` : http://localhost:3000 en local.\n\nTests Postman (onglet Tests) : point 6 du plan — exécuter la collection avec Runner.",
+    "description": "Collection API backend — préfixe /api/v1 (sauf Health racine).\nVariable `baseUrl` : http://localhost:3000 en local.\n\nÉtape 4.1 : exécuter les 4 premières requêtes (Santé + Supabase) puis Runner.\n\nTests Postman (onglet Tests) : exécuter la collection avec Runner.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
       "value": "http://localhost:3000"
+    },
+    {
+      "key": "beneficiaireId",
+      "value": ""
+    },
+    {
+      "key": "sessionId",
+      "value": ""
+    },
+    {
+      "key": "transactionId",
+      "value": ""
     }
   ],
   "item": [
@@ -51,11 +63,158 @@
         "method": "GET",
         "header": [],
         "url": "{{baseUrl}}/api/v1/health",
-        "description": "GET /api/v1/health — même payload que /health"
+        "description": "GET /api/v1/health — même payload que /health (étape 4.1)"
       }
     },
     {
-      "name": "Supabase — ping (sans tables)",
+      "name": "4.1 — Supabase ping (API v1)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });",
+              "pm.test(\"supabase dans data\", function () { var d = pm.response.json().data; pm.expect(d).to.have.property(\"supabase\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/health/supabase",
+        "description": "Étape 4.1 — même logique que /health/supabase mais sous préfixe /api/v1"
+      }
+    },
+    {
+      "name": "4.2 — Contexte client + comptes (GET /me)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });",
+              "pm.test(\"client + comptes\", function () { var d = pm.response.json().data; pm.expect(d).to.have.property(\"client\"); pm.expect(d).to.have.property(\"comptes\"); pm.expect(d).to.have.property(\"solde_total\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/me?reference_client=C-501",
+        "description": "Étape 4.2 — client, comptes avec solde_disponible, solde_total. Prérequis : migrations 001+005 et client existant (adapter reference_client)."
+      }
+    },
+    {
+      "name": "4.3 — POST bénéficiaire (compte bancaire)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });",
+              "var j = pm.response.json(); if (j.data && j.data.id) { pm.collectionVariables.set(\"beneficiaireId\", j.data.id); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"compte_bancaire\",\n  \"compte_identifiant\": \"CD-DEMO-0001\",\n  \"banque_code\": \"RAWBANK\",\n  \"titulaire_compte\": \"Marie Mbuji\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/beneficiaires",
+        "description": "Étape 4.3 — migration 004. Optionnel : ajouter reference_client_lie si le bénéficiaire est un client connu."
+      }
+    },
+    {
+      "name": "4.3 — POST bénéficiaire (mobile money)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"mobile_money\",\n  \"telephone\": \"+243900000000\",\n  \"operateur_mobile\": \"Orange\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/beneficiaires",
+        "description": "Étape 4.3 — mobile money"
+      }
+    },
+    {
+      "name": "4.3 — GET liste bénéficiaires",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"liste\", function () { pm.expect(pm.response.json().data.beneficiaires).to.be.an(\"array\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/beneficiaires?limit=20",
+        "description": "Étape 4.3 — liste (limit 1–100, défaut 50)"
+      }
+    },
+    {
+      "name": "4.3 — GET bénéficiaire par id",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"id\", function () { pm.expect(pm.response.json().data.id).to.exist; });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/beneficiaires/{{beneficiaireId}}",
+        "description": "Étape 4.3 — lancer après POST banque qui remplit beneficiaireId, ou coller un UUID manuellement."
+      }
+    },
+    {
+      "name": "Supabase — ping (racine)",
       "event": [
         {
           "listen": "test",
@@ -73,7 +232,7 @@
         "method": "GET",
         "header": [],
         "url": "{{baseUrl}}/health/supabase",
-        "description": "GET — vérifie que le projet Supabase répond (Auth /health). Pas besoin de tables SQL."
+        "description": "Étape 4.1 — vérifie Auth /health Supabase (alias racine, pas de préfixe api)"
       }
     },
     {
@@ -85,7 +244,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
-              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });",
+              "pm.test(\"persistence\", function () { var d = pm.response.json().data; pm.expect(d).to.have.property(\"persistence\"); pm.expect(d.persistence.status).to.be.oneOf([\"persisted\",\"skipped\"]); });"
             ]
           }
         }
@@ -103,11 +263,11 @@
           "raw": "{\n  \"transaction_event\": {\n    \"metadata\": {\n      \"numero_transaction\": \"TXN-DEMO-001\",\n      \"id_client\": \"C-501\",\n      \"montant\": 45000,\n      \"devise\": \"CDF\",\n      \"type_transaction\": \"P2P\",\n      \"canal\": \"mobile\"\n    }\n  }\n}"
         },
         "url": "{{baseUrl}}/api/v1/transactions/evaluate",
-        "description": "POST — validation Zod sur le corps"
+        "description": "POST /evaluate — Zod ; étape 4.5 : persistance si métadonnées complètes + Supabase (sinon skipped)."
       }
     },
     {
-      "name": "Sessions — Upsert (stub)",
+      "name": "4.5 — POST evaluate (persistance)",
       "event": [
         {
           "listen": "test",
@@ -115,7 +275,10 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
-              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });",
+              "pm.test(\"persistence\", function () { var d = pm.response.json().data; pm.expect(d).to.have.property(\"persistence\"); pm.expect(d.persistence.status).to.be.oneOf([\"persisted\",\"skipped\"]); });",
+              "pm.test(\"persisted details\", function () { var p = pm.response.json().data.persistence; if (p.status === \"persisted\") { pm.expect(p.transaction_id).to.exist; pm.expect(p.numero_transaction).to.exist; } });",
+              "var j = pm.response.json(); if (j.data && j.data.persistence && j.data.persistence.status === \"persisted\" && j.data.persistence.transaction_id) { pm.collectionVariables.set(\"transactionId\", j.data.persistence.transaction_id); }"
             ]
           }
         }
@@ -130,14 +293,45 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"client_id\": \"C-501\",\n  \"canal\": \"mobile\"\n}"
+          "raw": "{\n  \"session_id\": \"{{sessionId}}\",\n  \"transaction_event\": {\n    \"metadata\": {\n      \"numero_transaction\": \"TXN-4-5-{{$timestamp}}\",\n      \"id_client\": \"C-501\",\n      \"montant\": 1000,\n      \"devise\": \"CDF\",\n      \"date_transaction\": \"2025-03-24T10:00:00.000Z\",\n      \"type_transaction\": \"P2P\",\n      \"canal\": \"mobile\"\n    }\n  }\n}"
         },
-        "url": "{{baseUrl}}/api/v1/sessions",
-        "description": "POST — session (stub)"
+        "url": "{{baseUrl}}/api/v1/transactions/evaluate",
+        "description": "Étape 4.5 — lancer après 4.4 (sessionId) pour lier la session ; numero_transaction unique via {{$timestamp}}. Sans session, retirer session_id du corps. Remplit transactionId si persisted."
       }
     },
     {
-      "name": "Admin — Liste transactions (stub)",
+      "name": "4.4 — POST session (nouvelle, reference_client)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });",
+              "var j = pm.response.json(); if (j.data && j.data.session && j.data.session.id) { pm.collectionVariables.set(\"sessionId\", j.data.session.id); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reference_client\": \"C-501\",\n  \"canal\": \"mobile\",\n  \"adresse_ip\": \"192.168.1.1\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/sessions",
+        "description": "Étape 4.4 — crée une ligne sessions. Adapter reference_client. Remplit sessionId."
+      }
+    },
+    {
+      "name": "4.4 — POST session (mise à jour)",
       "event": [
         {
           "listen": "test",
@@ -145,7 +339,38 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
-              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+              "pm.test(\"updated\", function () { pm.expect(pm.response.json().data.operation).to.eql(\"updated\"); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"session_id\": \"{{sessionId}}\",\n  \"canal\": \"web\",\n  \"adresse_ip\": \"10.0.0.1\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/sessions",
+        "description": "Étape 4.4 — après création ; exécuter d’abord « POST session (nouvelle) » pour remplir sessionId."
+      }
+    },
+    {
+      "name": "4.6 — Admin liste transactions",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });",
+              "pm.test(\"liste\", function () { var d = pm.response.json().data; pm.expect(d).to.have.property(\"items\"); pm.expect(d).to.have.property(\"total\"); pm.expect(d).to.have.property(\"page\"); pm.expect(d).to.have.property(\"limit\"); });"
             ]
           }
         }
@@ -153,8 +378,29 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": "{{baseUrl}}/api/v1/admin/transactions",
-        "description": "GET — liste vide + message stub"
+        "url": "{{baseUrl}}/api/v1/admin/transactions?page=1&limit=20",
+        "description": "Étape 4.6 — liste paginée ; activer le query decision=allow si besoin (uniquement lignes avec scores_evaluation)."
+      }
+    },
+    {
+      "name": "4.6 — Admin détail transaction",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200 ou 404\", function () { pm.expect([200,404]).to.include(pm.response.code); });",
+              "if (pm.response.code === 200) { pm.test(\"detail\", function () { var d = pm.response.json().data; pm.expect(d).to.have.property(\"id\"); pm.expect(d).to.have.property(\"scores_evaluation\"); }); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/admin/transactions/{{transactionId}}",
+        "description": "Étape 4.6 — détail audit (satellites + scores). Coller un UUID ou exécuter 4.5 avant pour remplir transactionId."
       }
     }
   ]

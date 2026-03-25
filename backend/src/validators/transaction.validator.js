@@ -1,5 +1,11 @@
 const { z } = require('zod');
 
+/** Chaîne vide → undefined (variables Postman non remplies). */
+function emptyToUndefined(v) {
+  if (v === '' || v === undefined || v === null) return undefined;
+  return v;
+}
+
 /**
  * Schéma POST /api/v1/transactions/evaluate — aligné sur transaction_event (Strategie).
  * .passthrough() autorise des champs supplémentaires pendant l'évolution du schéma.
@@ -27,6 +33,13 @@ const transactionEventSchema = z
 const evaluateBodySchema = z
   .object({
     transaction_event: transactionEventSchema.optional(),
+    session_id: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
+    beneficiaire_id: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
+    compte_id: z.preprocess(emptyToUndefined, z.string().uuid().optional()),
+    latitude_debit: z.number().optional(),
+    longitude_debit: z.number().optional(),
+    latitude_credit: z.number().optional(),
+    longitude_credit: z.number().optional(),
   })
   .passthrough();
 

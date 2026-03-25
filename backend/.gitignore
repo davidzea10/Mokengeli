@@ -1,3 +1,6 @@
+# Dépendances
+node_modules/
+
 # Secrets locaux (jamais committer)
 .env
 .env.local
