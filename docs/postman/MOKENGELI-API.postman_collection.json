@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "MOKENGELI API",
-    "description": "Collection API backend — préfixe /api/v1 (sauf Health racine).\nVariable `baseUrl` : http://localhost:3000 en local.",
+    "description": "Collection API backend — préfixe /api/v1 (sauf Health racine).\nVariable `baseUrl` : http://localhost:3000 en local.\n\nTests Postman (onglet Tests) : point 6 du plan — exécuter la collection avec Runner.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,6 +13,19 @@
   "item": [
     {
       "name": "Health (racine)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"JSON success\", function () { var j = pm.response.json(); pm.expect(j.success).to.be.true; });",
+              "pm.test(\"data.status ok\", function () { var j = pm.response.json(); pm.expect(j.data.status).to.eql(\"ok\"); });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "GET",
         "header": [],
@@ -22,6 +35,18 @@
     },
     {
       "name": "Health API v1",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "GET",
         "header": [],
@@ -31,6 +56,19 @@
     },
     {
       "name": "Supabase — ping (sans tables)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"payload success\", function () { pm.expect(pm.response.json().success).to.be.true; });",
+              "pm.test(\"supabase object\", function () { var d = pm.response.json().data; pm.expect(d).to.have.property(\"supabase\"); });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "GET",
         "header": [],
@@ -40,6 +78,18 @@
     },
     {
       "name": "Transactions — Evaluate",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
         "header": [
@@ -58,6 +108,18 @@
     },
     {
       "name": "Sessions — Upsert (stub)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
         "header": [
@@ -76,6 +138,18 @@
     },
     {
       "name": "Admin — Liste transactions (stub)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "GET",
         "header": [],
