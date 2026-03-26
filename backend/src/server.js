@@ -25,9 +25,11 @@ function readTlsMaterial() {
 }
 
 const tls = readTlsMaterial();
+/** Dev local, opt-in explicite, ou PaaS (Render injecte RENDER=true — TLS terminé en amont, pas de fichiers certs dans le conteneur). */
 const allowHttpFallback =
   config.nodeEnv === 'development' ||
-  process.env.ALLOW_HTTP_WITHOUT_TLS === 'true';
+  process.env.ALLOW_HTTP_WITHOUT_TLS === 'true' ||
+  process.env.RENDER === 'true';
 
 const publicApp = buildApp('public');
 
@@ -55,7 +57,7 @@ if (tls.ok) {
       keyPath,
       certPath,
     },
-    'Certificats TLS absents — démarrage en HTTP (OK pour le dev local). En prod, placez server.key / server.crt dans certs/ ou définissez CERTS_DIR.'
+    'Certificats TLS absents — démarrage en HTTP (dev, Render, ou ALLOW_HTTP_WITHOUT_TLS). HTTPS public reste assuré par la plateforme (ex. Render) devant le process.'
   );
   http.createServer(publicApp).listen(config.publicPort, () => {
     logger.info(
