@@ -1,5 +1,6 @@
 const beneficiaireModel = require('../models/beneficiaire.model');
 const clientModel = require('../models/client.model');
+const compteResolution = require('./compteResolution.service');
 
 /**
  * @param {import('zod').infer<typeof import('../validators/beneficiaire.validator').createBeneficiaireSchema>} body
@@ -18,6 +19,11 @@ async function create(body) {
       return { clientLieNotFound: true, ref: body.reference_client_lie };
     }
     client_lie_id = resolved.data.id;
+  } else {
+    const auto = await compteResolution.resolveClientLieIdForBeneficiaireBody(body);
+    if (auto.client_lie_id) {
+      client_lie_id = auto.client_lie_id;
+    }
   }
 
   const row = {

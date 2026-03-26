@@ -2,6 +2,8 @@ const clientModel = require('../models/client.model');
 const beneficiaireModel = require('../models/beneficiaire.model');
 const sessionModel = require('../models/session.model');
 const transactionModel = require('../models/transaction.model');
+const compteResolution = require('./compteResolution.service');
+const notificationService = require('./notification.service');
 
 /**
  * Indique si les métadonnées minimales permettent une persistance BDD.
@@ -33,6 +35,11 @@ async function persistEvaluate(payload, { scores, decision }) {
   }
   if (!canPersistMetadata(meta)) {
     return { skipped: true, reason: 'METADATA_INCOMPLETE' };
+  }
+
+  const decisionStr = String(decision?.decision ?? '').toLowerCase();
+  if (decisionStr !== 'allow') {
+    return { skipped: true, reason: 'DECISION_NOT_ALLOW' };
   }
 
   const clientRes = await clientModel.findByReferenceWithComptes(meta.id_client.trim());
@@ -104,6 +111,8 @@ async function persistEvaluate(payload, { scores, decision }) {
     }
   }
 
+  let creditCompteId = null;
+
   if (payload.beneficiaire_id) {
     const b = await beneficiaireModel.findById(payload.beneficiaire_id);
     if (b.unavailable) {
@@ -115,6 +124,24 @@ async function persistEvaluate(payload, { scores, decision }) {
         statusCode: 404,
         message: 'Bénéficiaire introuvable',
       };
+    }
+
+    const resolved = await compteResolution.resolveCreditCompteForBeneficiaire(
+      b.data,
+      clientId
+    );
+    if (resolved.error) {
+      const code = resolved.error;
+      const status =
+        code === 'SELF_TRANSFER' ? 400 : code === 'PHONE_NOT_10_DIGITS' ? 422 : 422;
+      return {
+        error: code,
+        statusCode: status,
+        message: resolved.message || 'Destinataire invalide',
+      };
+    }
+    if (resolved.compteId) {
+      creditCompteId = resolved.compteId;
     }
   }
 
@@ -175,6 +202,7 @@ async function persistEvaluate(payload, { scores, decision }) {
     decision,
     montant: meta.montant,
     compteId,
+    creditCompteId,
   });
 
   if (ins.duplicate) {
@@ -186,6 +214,27 @@ async function persistEvaluate(payload, { scores, decision }) {
   }
   if (ins.error) {
     return { error: 'DATABASE_ERROR', statusCode: 500, message: ins.error };
+  }
+
+  if (creditCompteId) {
+    const senderCompte = compte;
+    const notif = await notificationService.createTransferPair({
+      numeroTransaction: row.numero_transaction,
+      montant: meta.montant,
+      devise: meta.devise,
+      dateIso: row.date_transaction,
+      senderClientId: clientId,
+      senderNom: clientRes.data.nom_complet || clientRes.data.reference_client,
+      senderCompteNumero: senderCompte?.numero_compte || null,
+      senderCompteLibelle: senderCompte?.libelle || null,
+      senderSoldeApres: ins.senderSoldeApres,
+      creditCompteId,
+      receiverSoldeApres: ins.receiverSoldeApres,
+    });
+    if (notif.error) {
+      // La transaction est déjà enregistrée ; on ne bloque pas la réponse.
+      console.warn('[persistEvaluate] notifications:', notif.error);
+    }
   }
 
   return {

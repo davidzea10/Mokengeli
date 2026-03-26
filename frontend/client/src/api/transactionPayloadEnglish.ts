@@ -13,6 +13,15 @@ export interface TransactionMetadataEn {
   weekday: number;
   transaction_type: string;
   channel: string;
+  /** Destinataire — banque (compte) ou mobile money (téléphone) */
+  beneficiary_mode?: 'bank' | 'mobile_money';
+  /** Sous-flux bancaire (RDC) lorsque le destinataire est un compte banque. */
+  bank_flow?: 'rawbank_rawbank' | 'rawbank_autre' | 'rawbank_vers_mobile';
+  beneficiary_account_identifier?: string;
+  beneficiary_bank_code?: string;
+  beneficiary_account_holder?: string;
+  beneficiary_phone?: string;
+  beneficiary_mobile_operator?: string;
 }
 
 export interface NetworkIntelligenceEn {

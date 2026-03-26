@@ -80,7 +80,7 @@ function mapSecu(te) {
 }
 
 /**
- * Insert transaction + satellites + scores + débit solde compte.
+ * Insert transaction + satellites + scores + débit solde compte + crédit compte destinataire (optionnel).
  */
 async function insertFullEvaluation({
   transactionRow,
@@ -89,6 +89,7 @@ async function insertFullEvaluation({
   decision,
   montant,
   compteId,
+  creditCompteId,
 }) {
   const db = getSupabase();
   if (!db) {
@@ -138,6 +139,9 @@ async function insertFullEvaluation({
     }
   }
 
+  let senderSoldeApres = null;
+  let receiverSoldeApres = null;
+
   const { data: compteRow } = await db
     .from('comptes_bancaires')
     .select('solde_disponible')
@@ -150,13 +154,35 @@ async function insertFullEvaluation({
     typeof montant === 'number'
   ) {
     const nouveau = Number(compteRow.solde_disponible) - montant;
+    senderSoldeApres = Math.max(0, nouveau);
     await db
       .from('comptes_bancaires')
-      .update({ solde_disponible: Math.max(0, nouveau) })
+      .update({ solde_disponible: senderSoldeApres })
       .eq('id', compteId);
   }
 
-  return { transactionId };
+  if (
+    creditCompteId &&
+    creditCompteId !== compteId &&
+    typeof montant === 'number' &&
+    montant > 0
+  ) {
+    const { data: creditRow } = await db
+      .from('comptes_bancaires')
+      .select('solde_disponible')
+      .eq('id', creditCompteId)
+      .maybeSingle();
+    if (creditRow && creditRow.solde_disponible != null) {
+      const apresCredit = Number(creditRow.solde_disponible) + montant;
+      receiverSoldeApres = apresCredit;
+      await db
+        .from('comptes_bancaires')
+        .update({ solde_disponible: apresCredit })
+        .eq('id', creditCompteId);
+    }
+  }
+
+  return { transactionId, senderSoldeApres, receiverSoldeApres };
 }
 
 async function insertTransaction(row) {

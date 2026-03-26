@@ -41,6 +41,15 @@ npm run dev
 
 **Erreurs** : `404` client inconnu ; `503` si Supabase non configuré ; `422` si `reference_client` manquant.
 
+**Connexion démo (alignée frontend `contracts.ts`)** :
+
+| Méthode | Endpoint | Rôle |
+|--------|----------|------|
+| `POST` | `/api/v1/client/login` | Corps JSON : `name`, `password` (optionnel `client_sent_at`). Comptes démo : même règles que le portail React (`demo` / `demo123` → `DEMO_01`, `standard` → `C-501`, etc.). Vérifie que le client existe en base. |
+| `POST` | `/api/v1/client/logout` | Corps : `profile_id` (+ optionnels). Réponse d’accusé (pas de session JWT en démo). |
+
+Flux : **`POST /client/login` → 200** puis **`GET /me?reference_client=<data.reference_client>`** pour charger soldes réels.
+
 **Postman** : requête **« 4.2 — Contexte client + comptes (GET /me) »** — adapter `reference_client` à une ligne réelle de ta base.
 
 ## Étape 4.3 — Bénéficiaires (banque ou mobile money)

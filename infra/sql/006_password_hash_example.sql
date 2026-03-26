@@ -1,0 +1,10 @@
+-- =============================================================================
+-- Exemple : définir le mot de passe en ligne pour un client (bcrypt)
+-- 1) Dans Mokengeli/backend : npm run hash-password -- "VotreMotDePasse"
+-- 2) Coller le hash ci-dessous puis exécuter (adapter reference_client).
+-- =============================================================================
+--
+-- UPDATE public.clients
+-- SET password_hash = '$2a$12$........................................................'
+-- WHERE reference_client = 'VOTRE_REFERENCE';
+--
