@@ -2,10 +2,17 @@ const config = require('../config');
 const { sendSuccess } = require('../utils/response');
 
 function getHealth(req, res) {
+  if (req.app.locals.serverMode === 'mtls') {
+    return res.status(200).json({
+      status: 'secure',
+      mtls: true,
+    });
+  }
+
   const supabaseConfigured = Boolean(
     config.supabaseUrl && config.supabaseServiceKey
   );
-  sendSuccess(res, {
+  return sendSuccess(res, {
     status: 'ok',
     service: 'mokengeli-backend',
     environment: config.nodeEnv,

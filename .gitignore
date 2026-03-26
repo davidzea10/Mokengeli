@@ -26,3 +26,6 @@ __pycache__/
 .venv/
 venv/
 .ipynb_checkpoints/
+
+# Certificats TLS locaux (ne pas versionner)
+certs/

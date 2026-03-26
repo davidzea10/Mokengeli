@@ -1,13 +1,13 @@
 {
   "info": {
     "name": "MOKENGELI API",
-    "description": "Collection API backend — préfixe /api/v1 (sauf Health racine).\nVariable `baseUrl` : http://localhost:3000 en local.\n\nÉtape 4.1 : exécuter les 4 premières requêtes (Santé + Supabase) puis Runner.\n\nTests Postman (onglet Tests) : exécuter la collection avec Runner.",
+    "description": "Collection API backend — préfixe /api/v1 (sauf Health racine).\nVariable `baseUrl` : https://localhost:3000 (chemin public HTTPS, sans mTLS).\nPour le listener mTLS (MTLS_ENABLED=true + port 8443), ajouter cert client dans Postman.\n\nTests Postman (onglet Tests) : point 6 du plan — exécuter la collection avec Runner.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3000"
+      "value": "https://localhost:3000"
     },
     {
       "key": "beneficiaireId",
@@ -42,7 +42,7 @@
         "method": "GET",
         "header": [],
         "url": "{{baseUrl}}/health",
-        "description": "GET /health — sans préfixe (healthcheck Render, etc.)"
+        "description": "GET /health — chemin public HTTPS (sans mTLS). Réponse { success, data } avec status ok."
       }
     },
     {
@@ -54,7 +54,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
-              "pm.test(\"success true\", function () { pm.expect(pm.response.json().success).to.be.true; });"
+              "pm.test(\"JSON success\", function () { var j = pm.response.json(); pm.expect(j.success).to.be.true; });",
+              "pm.test(\"data.status ok\", function () { var j = pm.response.json(); pm.expect(j.data.status).to.eql(\"ok\"); });"
             ]
           }
         }

@@ -1,7 +1,7 @@
 # Collection Postman — MOKENGELI
 
 1. Ouvrir Postman → **Import** → fichier `MOKENGELI-API.postman_collection.json`.
-2. Variable de collection **`baseUrl`** : `http://localhost:3000` (ou l’URL Render en prod).
+2. Variable de collection **`baseUrl`** : `https://localhost:3000` (chemin **public** HTTPS, sans cert client — hackathon). Pour tester le **listener mTLS** (`MTLS_ENABLED=true`, port **8443**), changer `baseUrl` et ajouter le certificat client dans **Settings → Certificates**.
 3. Démarrer le backend : `cd backend && npm run dev`.
 
 Endpoints inclus : `GET /health`, `GET /api/v1/health`, `GET /health/supabase`, `POST /api/v1/transactions/evaluate`, `POST /api/v1/sessions`, `GET /api/v1/admin/transactions`, `GET /api/v1/admin/transactions/:id`.
@@ -53,6 +53,6 @@ Variable Postman **`sessionId`** remplie après la première requête 4.4.
 
 Chaque requête inclut des scripts **Tests** (onglet **Tests** après exécution).
 
-- **Collection** → bouton **Run** (Runner) → sélectionner toutes les requêtes → **Run MOKENGELI API** : vérifier que toutes les cases sont vertes (statut HTTP + JSON `success`).
+- **Collection** → bouton **Run** (Runner) → sélectionner toutes les requêtes → **Run MOKENGELI API** : vérifier que toutes les cases sont vertes (statut HTTP + JSON attendu par requête ; `/health` renvoie `{ status, mtls }`, les autres routes métier utilisent `{ success, ... }`).
 
 Complément côté base : `infra/sql/003_integrity_verification.sql` dans le **SQL Editor** Supabase (contraintes FK + unicité `numero_transaction`).

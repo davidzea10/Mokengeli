@@ -9,6 +9,17 @@ const logger = pino({
   base: {
     service: 'mokengeli-backend',
   },
+  // Evite de journaliser les secrets transmis via en-têtes (tokens, clés API).
+  redact: {
+    paths: [
+      'req.headers.authorization',
+      'req.headers.x-api-key',
+      'req.body.token',
+      'req.body.authorization',
+      'req.body.apiKey',
+    ],
+    remove: true,
+  },
   timestamp: pino.stdTimeFunctions.isoTime,
 });
 
