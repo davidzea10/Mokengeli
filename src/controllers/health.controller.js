@@ -15,8 +15,6 @@ function getHealth(req, res) {
   return sendSuccess(res, {
     status: 'ok',
     service: 'mokengeli-backend',
-    environment: config.nodeEnv,
-    apiVersion: 'v1',
     timestamp: new Date().toISOString(),
     supabase: { configured: supabaseConfigured },
   });

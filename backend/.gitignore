@@ -1,7 +1,28 @@
-# Dépendances
+## Dépendances (ne jamais committer)
 node_modules/
 
-# Secrets locaux (jamais committer)
+## Secrets locaux (jamais committer)
 .env
+.env.*
+!.env.example
 .env.local
 .env.*.local
+
+## Build / logs
+dist/
+build/
+*.log
+coverage/
+
+## IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+## Python (au cas où)
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
