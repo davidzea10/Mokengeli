@@ -8,3 +8,13 @@ export function getApiBaseUrl(): string {
 export function isApiConfigured(): boolean {
   return getApiBaseUrl() !== '';
 }
+
+/**
+ * Même valeur que `API_KEY_SIMULATION` côté backend `.env` — requise si `AUTH_DISABLED` n’est pas `true`.
+ * Définir dans `.env` du client : VITE_API_KEY_SIMULATION=...
+ */
+export function getSimulationApiKey(): string {
+  const raw = import.meta.env.VITE_API_KEY_SIMULATION;
+  if (typeof raw !== 'string') return '';
+  return raw.trim();
+}

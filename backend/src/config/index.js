@@ -28,7 +28,13 @@ module.exports = {
   supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   /** Secret JWT du projet Supabase (Dashboard → Settings → API → JWT Secret) — pour valider les access_token Auth */
   supabaseJwtSecret: process.env.SUPABASE_JWT_SECRET || '',
-  authDisabled: process.env.AUTH_DISABLED === 'true',
+  /**
+   * Démo / hackathon : auth **désactivée par défaut** (pas de JWT ni clé API obligatoires).
+   * Pour réactiver : `AUTH_REQUIRED=true` ou `AUTH_DISABLED=false` (explicite).
+   */
+  authDisabled:
+    process.env.AUTH_REQUIRED !== 'true' &&
+    process.env.AUTH_DISABLED !== 'false',
   /** JWT signés localement (dev / tests sans Supabase Auth) */
   jwtSecret: process.env.JWT_SECRET || '',
   apiKeySimulation: process.env.API_KEY_SIMULATION || '',

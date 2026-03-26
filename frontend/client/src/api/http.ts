@@ -15,15 +15,25 @@ export async function getJson(path: string, searchParams?: Record<string, string
   });
 }
 
-export async function postJson(path: string, body: unknown): Promise<Response> {
+export async function postJson(
+  path: string,
+  body: unknown,
+  extraHeaders?: Record<string, string>
+): Promise<Response> {
   const base = getApiBaseUrl();
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) {
+      if (v) headers[k] = v;
+    }
+  }
   return fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 }

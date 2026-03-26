@@ -11,7 +11,7 @@ import type {
   ClientTransactionSimulationEnvelope,
 } from './contracts';
 import { API_ROUTES } from './contracts';
-import { isApiConfigured } from './config';
+import { getSimulationApiKey, isApiConfigured } from './config';
 import { getJson, patchJson, postJson, postJsonIfConfigured } from './http';
 
 function logJsonPayload(operation: string, payload: unknown): void {
@@ -324,7 +324,12 @@ export async function evaluateTransactionWithApi(
   );
 
   try {
-    const res = await postJson(API_ROUTES.transactionsEvaluate, payload);
+    const apiKey = getSimulationApiKey();
+    const res = await postJson(
+      API_ROUTES.transactionsEvaluate,
+      payload,
+      apiKey ? { 'x-api-key': apiKey } : undefined
+    );
     const json = (await res.json().catch(() => ({}))) as {
       success?: boolean;
       data?: EvaluateTransactionApiData;

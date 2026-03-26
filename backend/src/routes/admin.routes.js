@@ -1,16 +1,13 @@
 const express = require('express');
 const adminController = require('../controllers/admin.controller');
-const { requireAuth } = require('../middlewares/auth.middleware');
-const { apiLimiter } = require('../middlewares/rateLimit.middleware');
 const { validateQuery } = require('../middlewares/validate.middleware');
 const { listTransactionsQuerySchema } = require('../validators/admin.validator');
+// TODO prod : apiLimiter + requireAuth(['analyste']) sur /transactions
 
 const router = express.Router();
 
 router.get(
   '/transactions',
-  apiLimiter,
-  requireAuth(['analyste']),
   validateQuery(listTransactionsQuerySchema),
   adminController.listTransactions
 );
