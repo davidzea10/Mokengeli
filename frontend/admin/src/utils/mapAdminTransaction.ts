@@ -43,13 +43,23 @@ const neutralEvent = {
 };
 
 function pickClient(row: AdminTransactionRow) {
+  const debitFromApi = row.debit_compte?.numero_compte?.trim() ?? '';
+
   const c = row.clients;
-  if (!c) return { ref: row.client_id ?? '—', name: '' as string, comptePrincipal: '' as string };
+  if (!c) {
+    return {
+      ref: row.client_id ?? '—',
+      name: '' as string,
+      comptePrincipal: debitFromApi,
+    };
+  }
   const one = Array.isArray(c) ? c[0] : c;
   const comptes = one?.comptes_bancaires;
   const arr = Array.isArray(comptes) ? comptes : comptes ? [comptes] : [];
   const principal = arr.find((x) => x.est_compte_principal) ?? arr[0];
-  const comptePrincipal = principal?.numero_compte?.trim() ?? '';
+  const nestedNumero = principal?.numero_compte?.trim() ?? '';
+  /** Priorité : compte débité de la transaction (compte_id), puis compte principal chez le client. */
+  const comptePrincipal = debitFromApi || nestedNumero;
   return {
     ref: one?.reference_client ?? row.client_id ?? '—',
     name: one?.nom_complet?.trim() ?? '',

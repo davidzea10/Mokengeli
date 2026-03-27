@@ -151,6 +151,32 @@ async function enrichTransactionsWithBeneficiaires(rows) {
   });
 }
 
+const COMPTE_DEBIT_SELECT = 'id, numero_compte, devise_compte, est_compte_principal';
+
+/**
+ * Compte débité = `transactions.compte_id` → `comptes_bancaires` (cf. req.md), pas seulement le compte
+ * « principal » sous `clients`. Sans ça, le tableau affiche « — » pour Compte / n°.
+ */
+async function enrichTransactionsWithDebitCompte(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+  const ids = [...new Set(rows.map((r) => r.compte_id).filter(Boolean).map(String))];
+  if (ids.length === 0) return rows;
+  const { data: cpts, error } = await supabase.from('comptes_bancaires').select(COMPTE_DEBIT_SELECT).in('id', ids);
+  if (error) {
+    console.warn('[admin/transactions] enrich comptes_bancaires (débit):', error.message);
+    return rows;
+  }
+  if (!cpts?.length) return rows;
+  const map = new Map(cpts.map((c) => [String(c.id), c]));
+  return rows.map((row) => {
+    const cid = row.compte_id;
+    if (cid == null || cid === '') return row;
+    const c = map.get(String(cid));
+    if (!c) return row;
+    return { ...row, debit_compte: c };
+  });
+}
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
@@ -246,7 +272,8 @@ app.get('/api/v1/admin/transactions', async (req, res) => {
     });
   }
 
-  const items = await enrichTransactionsWithBeneficiaires(data ?? []);
+  let items = await enrichTransactionsWithBeneficiaires(data ?? []);
+  items = await enrichTransactionsWithDebitCompte(items);
 
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / limit));

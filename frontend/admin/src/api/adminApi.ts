@@ -10,6 +10,15 @@ export interface AdminTransactionRow {
   type_transaction?: string | null;
   canal?: string | null;
   client_id?: string | null;
+  /** Compte débité pour l’opération (req.md : JOIN comptes_bancaires ON cb.id = t.compte_id). */
+  compte_id?: string | null;
+  /** Rempli par l’API après enrichissement (numero_compte du débit). */
+  debit_compte?: {
+    id?: string;
+    numero_compte?: string | null;
+    devise_compte?: string | null;
+    est_compte_principal?: boolean | null;
+  } | null;
   session_id?: string | null;
   beneficiaire_id?: string | null;
   reference_beneficiaire?: string | null;
