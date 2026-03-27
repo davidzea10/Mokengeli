@@ -39,6 +39,11 @@ export interface TransactionMetadata {
   jour_semaine: number;
   type_transaction: string;
   canal: string;
+  /** Colonnes `transactions.latitude_*` / `longitude_*` (API admin). */
+  latitude_debit?: number | null;
+  longitude_debit?: number | null;
+  latitude_credit?: number | null;
+  longitude_credit?: number | null;
   /** Présent si la transaction est géolocalisée pour la traçabilité */
   route?: TransactionRoute;
   /** Présent si données API ou maquette enrichie. */

@@ -132,6 +132,13 @@ export interface EvaluateTransactionOptions {
   compteId?: string | null;
   beneficiaireId?: string | null;
   sessionId?: string | null;
+  /** Obligatoire : position du client au moment de l’initiation (débit). */
+  geolocation: {
+    latitude_debit: number;
+    longitude_debit: number;
+    latitude_credit?: number | null;
+    longitude_credit?: number | null;
+  };
 }
 
 /**
@@ -141,7 +148,7 @@ export function buildEvaluateTransactionBody(
   form: ClientFormLike,
   referenceClient: string,
   transactionNumber: string,
-  options?: EvaluateTransactionOptions
+  options: EvaluateTransactionOptions
 ): Record<string, unknown> {
   const now = new Date();
   const amount = parseFloat(form.montant) || 0;
@@ -151,6 +158,12 @@ export function buildEvaluateTransactionBody(
     typeof form.heure === 'number' && form.heure >= 0 && form.heure <= 23
       ? form.heure
       : now.getUTCHours();
+
+  const geo = options.geolocation;
+  const latD = geo.latitude_debit;
+  const lonD = geo.longitude_debit;
+  const latC = geo.latitude_credit ?? null;
+  const lonC = geo.longitude_credit ?? null;
 
   const metadata: Record<string, unknown> = {
     date_transaction: now.toISOString(),
@@ -163,7 +176,11 @@ export function buildEvaluateTransactionBody(
     type_transaction: form.type_transaction,
     canal: form.canal,
     reference_beneficiaire: buildBeneficiarySummary(form),
-    source_environnement: 'demo',
+    source_environnement: 'app',
+    latitude_debit: latD,
+    longitude_debit: lonD,
+    latitude_credit: latC,
+    longitude_credit: lonC,
     ...(form.beneficiary_mode === 'banque' ? { flux_bancaire: form.bank_flow } : {}),
   };
 
@@ -171,11 +188,15 @@ export function buildEvaluateTransactionBody(
     transaction_event: {
       metadata,
     },
+    latitude_debit: latD,
+    longitude_debit: lonD,
+    latitude_credit: latC,
+    longitude_credit: lonC,
   };
 
-  if (options?.compteId) body.compte_id = options.compteId;
-  if (options?.beneficiaireId) body.beneficiaire_id = options.beneficiaireId;
-  if (options?.sessionId) body.session_id = options.sessionId;
+  if (options.compteId) body.compte_id = options.compteId;
+  if (options.beneficiaireId) body.beneficiaire_id = options.beneficiaireId;
+  if (options.sessionId) body.session_id = options.sessionId;
 
   return body;
 }

@@ -302,6 +302,12 @@ export interface EvaluateTransactionParams {
   transactionNumber: string;
   compteId?: string | null;
   beneficiaireId?: string | null;
+  geolocation: {
+    latitude_debit: number;
+    longitude_debit: number;
+    latitude_credit?: number | null;
+    longitude_credit?: number | null;
+  };
 }
 
 /**
@@ -320,6 +326,7 @@ export async function evaluateTransactionWithApi(
     {
       compteId: params.compteId ?? undefined,
       beneficiaireId: params.beneficiaireId ?? undefined,
+      geolocation: params.geolocation,
     }
   );
 

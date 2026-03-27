@@ -21,6 +21,10 @@ export interface AdminTransactionRow {
   } | null;
   session_id?: string | null;
   beneficiaire_id?: string | null;
+  latitude_debit?: number | null;
+  longitude_debit?: number | null;
+  latitude_credit?: number | null;
+  longitude_credit?: number | null;
   reference_beneficiaire?: string | null;
   raw_payload?: Record<string, unknown> | null;
   clients?:

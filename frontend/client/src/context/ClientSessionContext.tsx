@@ -18,6 +18,7 @@ import type { MeContextData } from '../api';
 import type { BankFlow } from '../api/buildTransactionPayload';
 import { buildBeneficiarySummary } from '../api/buildTransactionPayload';
 import { isValidPhoneRdcInput } from '../utils/phoneDigits';
+import { getRequiredGeolocation } from '../utils/geolocation';
 
 export interface TransactionResult {
   score_m1: number;
@@ -248,6 +249,16 @@ export function ClientSessionProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setTransactionResult(null);
     try {
+      let geo: { latitude_debit: number; longitude_debit: number };
+      try {
+        const pos = await getRequiredGeolocation();
+        geo = { latitude_debit: pos.latitude, longitude_debit: pos.longitude };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Géolocalisation requise.';
+        setTransactionApiError(msg);
+        return;
+      }
+
       const benRes = await createBeneficiaireApi(formData);
       let beneficiaireId: string | undefined;
       if (benRes.ok) {
@@ -269,6 +280,12 @@ export function ClientSessionProvider({ children }: { children: ReactNode }) {
         transactionNumber: txNum,
         compteId: principal?.compte_id ?? null,
         beneficiaireId: beneficiaireId ?? null,
+        geolocation: {
+          latitude_debit: geo.latitude_debit,
+          longitude_debit: geo.longitude_debit,
+          latitude_credit: null,
+          longitude_credit: null,
+        },
       });
 
       if (!evalRes.ok) {

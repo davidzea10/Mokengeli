@@ -117,6 +117,11 @@ export function TransactionTable({
   const rangeStart = pag && pag.totalItems > 0 ? (pag.page - 1) * pag.pageSize + 1 : 0;
   const rangeEnd = pag ? Math.min(pag.page * pag.pageSize, pag.totalItems) : 0;
 
+  const formatLatLon = (lat: number | null | undefined, lon: number | null | undefined) => {
+    if (lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) return '—';
+    return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  };
+
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-lg shadow-slate-900/[0.06] ring-1 ring-slate-900/[0.04]">
       <div className="flex flex-col gap-2 border-b border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-amber-50/25 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3.5">
@@ -161,7 +166,7 @@ export function TransactionTable({
           </div>
         )}
         <table
-          className={`w-full min-w-[1100px] border-collapse text-left sm:min-w-[1280px] ${isLoading ? 'pointer-events-none opacity-45' : ''}`}
+          className={`w-full min-w-[1200px] border-collapse text-left sm:min-w-[1480px] ${isLoading ? 'pointer-events-none opacity-45' : ''}`}
         >
           <thead>
             <tr className="sticky top-0 z-10 border-b border-slate-200/90 bg-slate-100/98 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-600 backdrop-blur-sm sm:text-[11px]">
@@ -179,13 +184,13 @@ export function TransactionTable({
                 Référence
               </th>
               <th
-                colSpan={3}
+                colSpan={4}
                 className="border-l border-slate-200/80 bg-amber-50/50 px-2 py-2 text-center text-slate-800"
               >
                 Expéditeur (client)
               </th>
               <th
-                colSpan={3}
+                colSpan={4}
                 className="border-l border-slate-200/80 bg-slate-100/80 px-2 py-2 text-center text-slate-800"
               >
                 Destinataire (bénéficiaire)
@@ -224,9 +229,11 @@ export function TransactionTable({
               <th className="border-l border-slate-200/80 bg-amber-50/30 px-2 py-2">Nom</th>
               <th className="bg-amber-50/30 px-2 py-2">Compte / n°</th>
               <th className="bg-amber-50/30 px-2 py-2">Banque / mobile</th>
+              <th className="min-w-[7.5rem] bg-amber-50/30 px-2 py-2">Lat / lon</th>
               <th className="border-l border-slate-200/80 bg-slate-100/50 px-2 py-2">Nom</th>
               <th className="bg-slate-100/50 px-2 py-2">Compte / n°</th>
               <th className="bg-slate-100/50 px-2 py-2">Banque / mobile</th>
+              <th className="min-w-[7.5rem] bg-slate-100/50 px-2 py-2">Lat / lon</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100/90">
@@ -264,6 +271,9 @@ export function TransactionTable({
                       {p.expediteurModeLabel}
                     </span>
                   </td>
+                  <td className="max-w-[9rem] px-2 py-3 font-mono text-[10px] text-slate-600 sm:text-xs" title="Position client (débit)">
+                    {formatLatLon(meta.latitude_debit, meta.longitude_debit)}
+                  </td>
                   <td className="max-w-[9rem] truncate border-l border-slate-100 px-2 py-3 text-xs text-slate-800 sm:text-sm">
                     {p.destinataire.nom}
                   </td>
@@ -274,6 +284,9 @@ export function TransactionTable({
                     <span className="inline-flex rounded-lg border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm sm:text-xs">
                       {p.destinataireModeLabel}
                     </span>
+                  </td>
+                  <td className="max-w-[9rem] px-2 py-3 font-mono text-[10px] text-slate-600 sm:text-xs" title="Position bénéficiaire (crédit)">
+                    {formatLatLon(meta.latitude_credit, meta.longitude_credit)}
                   </td>
                   <td className="px-3 py-3 text-xs text-slate-700 sm:px-4 sm:text-sm">{meta.type_transaction}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-xs font-semibold tabular-nums text-slate-900 sm:px-4 sm:text-sm">

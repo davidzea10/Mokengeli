@@ -318,6 +318,10 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
         jour_semaine: jourSemaine,
         type_transaction: typeTx,
         canal,
+        latitude_debit: row.latitude_debit ?? null,
+        longitude_debit: row.longitude_debit ?? null,
+        latitude_credit: row.latitude_credit ?? null,
+        longitude_credit: row.longitude_credit ?? null,
         parties: {
           expediteur: buildExpediteur(row, canal),
           destinataire: pickBeneficiary(row),

@@ -174,6 +174,231 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * POST /api/v1/transactions/evaluate — scoring + persistance `transactions` (lat/lon débit obligatoires côté client).
+ * Le client envoie `latitude_debit` / `longitude_debit` (position initiateur). Crédit réservé à un futur flux receveur.
+ */
+app.post('/api/v1/transactions/evaluate', async (req, res) => {
+  const authDisabled = String(process.env.AUTH_DISABLED ?? 'true').toLowerCase() === 'true';
+  const apiKeyExpected = process.env.API_KEY_SIMULATION;
+  if (!authDisabled && apiKeyExpected) {
+    const key = req.headers['x-api-key'];
+    if (key !== apiKeyExpected) {
+      return res.status(401).json({ success: false, error: { message: 'Non autorisé', code: 'UNAUTHORIZED' } });
+    }
+  }
+
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const te = body.transaction_event;
+    const meta = te?.metadata;
+    if (!meta || typeof meta !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Corps invalide : transaction_event.metadata requis', code: 'BAD_REQUEST' },
+      });
+    }
+
+    const latD = body.latitude_debit ?? meta.latitude_debit;
+    const lonD = body.longitude_debit ?? meta.longitude_debit;
+    if (
+      latD == null ||
+      lonD == null ||
+      !Number.isFinite(Number(latD)) ||
+      !Number.isFinite(Number(lonD))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'latitude_debit et longitude_debit sont obligatoires',
+          code: 'GEO_REQUIRED',
+        },
+      });
+    }
+
+    const latDebit = Number(latD);
+    const lonDebit = Number(lonD);
+    if (latDebit < -90 || latDebit > 90 || lonDebit < -180 || lonDebit > 180) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Coordonnées débit hors plage', code: 'INVALID_COORDS' },
+      });
+    }
+
+    let latCredit = null;
+    let lonCredit = null;
+    const lc = body.latitude_credit ?? meta.latitude_credit;
+    const lcc = body.longitude_credit ?? meta.longitude_credit;
+    if (lc != null && lcc != null && Number.isFinite(Number(lc)) && Number.isFinite(Number(lcc))) {
+      latCredit = Number(lc);
+      lonCredit = Number(lcc);
+      if (latCredit < -90 || latCredit > 90 || lonCredit < -180 || lonCredit > 180) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Coordonnées crédit hors plage', code: 'INVALID_COORDS' },
+        });
+      }
+    }
+
+    const refClient = String(meta.id_client ?? '')
+      .trim()
+      .replace(/^\((.+)\)$/, '$1');
+    if (!refClient) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'id_client manquant dans metadata', code: 'BAD_REQUEST' },
+      });
+    }
+
+    const { data: clientRow, error: clientErr } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('reference_client', refClient)
+      .maybeSingle();
+
+    if (clientErr) {
+      console.error('[transactions/evaluate] client', clientErr);
+      return res.status(500).json({
+        success: false,
+        error: { message: clientErr.message, code: clientErr.code },
+      });
+    }
+    if (!clientRow?.id) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Client introuvable pour cette référence', code: 'CLIENT_NOT_FOUND' },
+      });
+    }
+
+    const compteId = body.compte_id;
+    if (!compteId || String(compteId).trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'compte_id requis', code: 'BAD_REQUEST' },
+      });
+    }
+
+    const { data: compteRow, error: compteErr } = await supabase
+      .from('comptes_bancaires')
+      .select('id, client_id')
+      .eq('id', compteId)
+      .maybeSingle();
+
+    if (compteErr) {
+      console.error('[transactions/evaluate] compte', compteErr);
+      return res.status(500).json({
+        success: false,
+        error: { message: compteErr.message, code: compteErr.code },
+      });
+    }
+    if (!compteRow?.id || String(compteRow.client_id) !== String(clientRow.id)) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Compte invalide pour ce client', code: 'INVALID_COMPTE' },
+      });
+    }
+
+    const numero = String(meta.numero_transaction ?? '').trim();
+    if (!numero) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'numero_transaction manquant', code: 'BAD_REQUEST' },
+      });
+    }
+
+    const montant = Number(meta.montant);
+    if (!Number.isFinite(montant) || montant <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'montant invalide', code: 'BAD_REQUEST' },
+      });
+    }
+
+    const devise = String(meta.devise ?? 'FC').trim() || 'FC';
+    const heure = Number(meta.heure);
+    const jourSemaine = Number(meta.jour_semaine);
+    const heureOk = Number.isFinite(heure) && heure >= 0 && heure <= 23 ? heure : new Date().getUTCHours();
+    const jourOk =
+      Number.isFinite(jourSemaine) && jourSemaine >= 1 && jourSemaine <= 7
+        ? jourSemaine
+        : (() => {
+            const d = new Date().getUTCDay();
+            return d === 0 ? 7 : d;
+          })();
+
+    const sourceEnv =
+      String(meta.source_environnement ?? 'app').trim() === 'demo' ? 'demo' : 'app';
+
+    const row = {
+      numero_transaction: numero,
+      client_id: clientRow.id,
+      compte_id: compteRow.id,
+      carte_id: null,
+      session_id: body.session_id ?? null,
+      date_transaction: meta.date_transaction || new Date().toISOString(),
+      montant,
+      devise,
+      heure: heureOk,
+      jour_semaine: jourOk,
+      type_transaction: String(meta.type_transaction ?? 'virement'),
+      canal: String(meta.canal ?? 'app'),
+      reference_beneficiaire: meta.reference_beneficiaire != null ? String(meta.reference_beneficiaire) : null,
+      beneficiaire_id: body.beneficiaire_id ?? null,
+      latitude_debit: latDebit,
+      longitude_debit: lonDebit,
+      latitude_credit: latCredit,
+      longitude_credit: lonCredit,
+      source_environnement: sourceEnv,
+    };
+
+    const { data: inserted, error: insErr } = await supabase
+      .from('transactions')
+      .insert(row)
+      .select('id, numero_transaction')
+      .single();
+
+    if (insErr) {
+      console.error('[transactions/evaluate] insert', insErr);
+      const low = String(insErr.message ?? '').toLowerCase();
+      if (low.includes('unique') || low.includes('duplicate')) {
+        return res.status(409).json({
+          success: false,
+          error: { message: 'Numéro de transaction déjà utilisé', code: 'DUPLICATE' },
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        error: { message: insErr.message, code: insErr.code },
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        scoring: {
+          score_m1_transaction: 0.12,
+          score_m2_session: 0.12,
+          score_m3_behavior: 0.12,
+          score_combined: 0.12,
+          decision: 'allow',
+          reason_codes: [],
+        },
+        persistence: {
+          status: 'persisted',
+          transaction_id: inserted?.id,
+          numero_transaction: inserted?.numero_transaction ?? numero,
+        },
+      },
+    });
+  } catch (e) {
+    console.error('[transactions/evaluate]', e);
+    return res.status(500).json({
+      success: false,
+      error: { message: e instanceof Error ? e.message : String(e), code: 'INTERNAL' },
+    });
+  }
+});
+
 /** Échappement basique pour motifs ILIKE PostgREST. */
 function escapeIlike(s) {
   return String(s).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
@@ -387,7 +612,7 @@ app.get('/api/v1/admin/alerts', async (_req, res) => {
 
 const server = app.listen(PORT, () => {
   console.log(
-    `Mokengeli backend http://localhost:${PORT} (GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
+    `Mokengeli backend http://localhost:${PORT} (POST /api/v1/transactions/evaluate, GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
   );
   console.log('[cors] Access-Control-Allow-Origin=*');
 });

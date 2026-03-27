@@ -83,6 +83,15 @@ export function TransferPage() {
           Solde disponible :{' '}
           <span className="font-semibold tabular-nums text-rb-yellow">{accountBalance.toLocaleString('fr-FR')} FC</span>
         </p>
+        <p
+          className={`mt-2 rounded-lg border px-3 py-2 text-xs leading-relaxed ${
+            isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-100/90' : 'border-amber-200 bg-amber-50 text-amber-950'
+          }`}
+        >
+          <span className="font-semibold">Géolocalisation obligatoire</span> — au clic sur « Valider l’opération », votre
+          navigateur demandera l’autorisation de position (HTTPS). Sans position, la transaction ne peut pas être
+          enregistrée.
+        </p>
       </header>
 
       <div
