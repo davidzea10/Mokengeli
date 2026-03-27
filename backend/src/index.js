@@ -26,10 +26,14 @@ const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://l
   .filter(Boolean);
 
 /**
- * Autorise les origines https://*.vercel.app (admin / previews).
- * - true si CORS_ALLOW_VERCEL=1|true
- * - ou si le service tourne sur Render (RENDER=true) et CORS_ALLOW_VERCEL n’est pas explicitement désactivé
+ * Mode strict (liste + *.vercel.app) : CORS_STRICT=true
+ * Sinon : réflexion de l’origine (origin: true) — compatible Vercel previews, domaines custom, Render, local.
+ * Les clés API / secrets restent côté serveur ; CORS ne sécurise pas l’API seul.
  */
+const corsStrict =
+  String(process.env.CORS_STRICT || '').toLowerCase() === 'true' ||
+  String(process.env.CORS_STRICT || '').toLowerCase() === '1';
+
 const corsVercelFlag = String(process.env.CORS_ALLOW_VERCEL || '').toLowerCase();
 const corsAllowVercel =
   corsVercelFlag === 'false' || corsVercelFlag === '0'
@@ -47,20 +51,45 @@ function isAllowedVercelOrigin(origin) {
   }
 }
 
+const corsCommon = {
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'X-Requested-With',
+    'X-API-Key',
+    'apikey',
+  ],
+  optionsSuccessStatus: 204,
+  credentials: false,
+};
+
 const app = express();
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin) return callback(null, true);
-      if (corsOrigins.includes(origin)) return callback(null, true);
-      if (corsAllowVercel && isAllowedVercelOrigin(origin)) return callback(null, true);
-      return callback(null, false);
-    },
-    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    optionsSuccessStatus: 204,
-  }),
-);
+if (corsStrict) {
+  app.use(
+    cors({
+      ...corsCommon,
+      origin(origin, callback) {
+        if (!origin) return callback(null, true);
+        if (corsOrigins.includes(origin)) return callback(null, true);
+        if (corsAllowVercel && isAllowedVercelOrigin(origin)) return callback(null, true);
+        return callback(null, false);
+      },
+    }),
+  );
+} else {
+  /**
+   * `origin: '*'` évite tout blocage lié aux previews Vercel (URL différente à chaque déploiement)
+   * ou à une liste Render incomplète. Pas de cookies cross-origin (credentials: false).
+   */
+  app.use(
+    cors({
+      ...corsCommon,
+      origin: '*',
+    }),
+  );
+}
 app.use(express.json());
 
 const CLIENTS_WITH_COMPTES = `
@@ -322,7 +351,7 @@ const server = app.listen(PORT, () => {
     `Mokengeli backend http://localhost:${PORT} (GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
   );
   console.log(
-    `[cors] Vercel (*.vercel.app)=${corsAllowVercel} | origines listées=${corsOrigins.length} | RENDER=${process.env.RENDER ?? '—'}`,
+    `[cors] mode=${corsStrict ? 'STRICT (liste)' : 'OPEN (*)' } | vercelAllow=${corsAllowVercel} | origins=${corsOrigins.length} | RENDER=${process.env.RENDER ?? '—'}`,
   );
 });
 
