@@ -83,28 +83,58 @@ function pickModelScores(row: AdminTransactionRow) {
   };
 }
 
+function asRecord(v: unknown): Record<string, unknown> | null {
+  if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>;
+  return null;
+}
+
 function pickBeneficiaryFromRaw(row: AdminTransactionRow): TransactionPartyDisplay | null {
-  const raw = row.raw_payload;
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
+  let raw: unknown = row.raw_payload;
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  const o = asRecord(raw);
+  if (!o) return null;
+
   const dest =
-    (typeof o.destinataire === 'object' && o.destinataire) ||
-    (typeof o.beneficiaire === 'object' && o.beneficiaire) ||
-    (typeof o.beneficiaire_info === 'object' && o.beneficiaire_info);
-  if (!dest || typeof dest !== 'object') return null;
-  const d = dest as Record<string, unknown>;
-  const nom = String(d.nom ?? d.nom_complet ?? d.titulaire_compte ?? d.titulaire ?? '').trim();
-  const compte = String(
-    d.telephone ?? d.numero ?? d.numero_compte ?? d.compte_identifiant ?? d.iban ?? '',
+    asRecord(o.destinataire) ||
+    asRecord(o.beneficiaire) ||
+    asRecord(o.beneficiaire_info) ||
+    asRecord(o.receiver) ||
+    asRecord(o.to) ||
+    asRecord(o.counterparty);
+
+  if (dest) {
+    const nom = String(dest.nom ?? dest.nom_complet ?? dest.titulaire_compte ?? dest.titulaire ?? '').trim();
+    const compte = String(
+      dest.telephone ?? dest.numero ?? dest.numero_compte ?? dest.compte_identifiant ?? dest.iban ?? '',
+    ).trim();
+    const modeStr = String(dest.mode ?? dest.type_canal ?? '').toLowerCase();
+    let mode: TransactionPartyDisplay['mode'] = '—';
+    if (modeStr.includes('mobile')) mode = 'mobile';
+    else if (modeStr.includes('banque') || modeStr.includes('compte')) mode = 'banque';
+    else if (compte && /^\+?[0-9\s\-]{8,}$/.test(compte)) mode = 'mobile';
+    else if (nom || compte) mode = 'banque';
+    if (nom || compte) return { nom: nom || '—', compte_ou_numero: compte || '—', mode };
+  }
+
+  const nomTop = String(
+    o.nom_destinataire ?? o.destinataire_nom ?? o.beneficiaire_nom ?? o.receiver_name ?? '',
   ).trim();
-  const modeStr = String(d.mode ?? d.type_canal ?? '').toLowerCase();
-  let mode: TransactionPartyDisplay['mode'] = '—';
-  if (modeStr.includes('mobile')) mode = 'mobile';
-  else if (modeStr.includes('banque') || modeStr.includes('compte')) mode = 'banque';
-  else if (compte && /^\+?[0-9\s\-]{8,}$/.test(compte)) mode = 'mobile';
-  else if (nom || compte) mode = 'banque';
-  if (!nom && !compte) return null;
-  return { nom: nom || '—', compte_ou_numero: compte || '—', mode };
+  const compteTop = String(
+    o.telephone_destinataire ?? o.destinataire_telephone ?? o.iban_destinataire ?? '',
+  ).trim();
+  if (nomTop || compteTop) {
+    const mode: TransactionPartyDisplay['mode'] =
+      compteTop && /^\+?[0-9\s\-]{8,}$/.test(compteTop) ? 'mobile' : 'banque';
+    return { nom: nomTop || '—', compte_ou_numero: compteTop || '—', mode };
+  }
+
+  return null;
 }
 
 /** Ligne `beneficiaires` (migration 004) ou ancien format texte. */
@@ -113,7 +143,16 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
   const one = b ? (Array.isArray(b) ? b[0] : b) : null;
   const ref = row.reference_beneficiaire?.trim() ?? '';
 
-  if (one && (one.id || one.mode || one.compte_identifiant || one.telephone || one.titulaire_compte)) {
+  if (
+    one &&
+    (one.id ||
+      one.mode ||
+      one.compte_identifiant ||
+      one.telephone ||
+      one.titulaire_compte ||
+      one.nom_complet ||
+      one.numero_compte)
+  ) {
     const modeRaw = String(one.mode ?? '').toLowerCase();
     const isMobile =
       modeRaw === 'mobile_money' ||
@@ -165,6 +204,16 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
       nom: ref,
       compte_ou_numero: ref,
       mode: /^\+?[0-9\s\-]{8,}$/.test(ref) ? 'mobile' : 'banque',
+    };
+  }
+
+  const bid = row.beneficiaire_id?.trim();
+  if (bid) {
+    const short = bid.length > 14 ? `${bid.slice(0, 8)}…` : bid;
+    return {
+      nom: short,
+      compte_ou_numero: short,
+      mode: 'banque',
     };
   }
 
