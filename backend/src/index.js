@@ -73,7 +73,11 @@ const RELATIONS_WITH_SESSIONS = `
     banque_code,
     titulaire_compte,
     telephone,
-    operateur_mobile
+    operateur_mobile,
+    nom_complet,
+    numero_compte,
+    type_canal,
+    banque_nom
   ),
   sessions:session_id (*),
   scores_evaluation (
@@ -93,7 +97,11 @@ const RELATIONS_WITHOUT_SESSIONS = `
     banque_code,
     titulaire_compte,
     telephone,
-    operateur_mobile
+    operateur_mobile,
+    nom_complet,
+    numero_compte,
+    type_canal,
+    banque_nom
   ),
   scores_evaluation (
     decision,
@@ -118,36 +126,16 @@ function buildSelect(clientsFragment, relationsFragment) {
 const BEN_SELECT_ENRICH =
   'id, mode, compte_identifiant, banque_code, titulaire_compte, telephone, operateur_mobile, nom_complet, numero_compte, type_canal, banque_nom';
 
-/** True si la ligne n’a pas de détail bénéficiaire exploitable (ex. select * sans jointure). */
-function needsBeneficiaireEnrich(row) {
-  const bid = row.beneficiaire_id;
-  if (bid == null || bid === '') return false;
-  const b = row.beneficiaires;
-  if (b == null) return true;
-  const one = Array.isArray(b) ? b[0] : b;
-  if (!one || typeof one !== 'object') return true;
-  return !(
-    one.titulaire_compte ||
-    one.nom_complet ||
-    one.telephone ||
-    one.compte_identifiant ||
-    one.mode ||
-    one.numero_compte
-  );
-}
-
 /**
- * Après une requête sans embed (ou embed vide), recharge les bénéficiaires par id en une requête.
- * Aligne le rendu prod (Render) sur le local où la jointure réussit souvent.
+ * Recharge **toutes** les lignes `beneficiaires` par `beneficiaire_id` et fusionne dans la réponse.
+ * La jointure PostgREST peut renvoyer null (FK non exposée, cache schéma) ou un objet incomplet ;
+ * une requête directe sur la table est la source de vérité — même comportement qu’en local.
  */
 async function enrichTransactionsWithBeneficiaires(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return rows;
-  const ids = new Set();
-  for (const row of rows) {
-    if (needsBeneficiaireEnrich(row)) ids.add(String(row.beneficiaire_id));
-  }
-  if (ids.size === 0) return rows;
-  const { data: bens, error } = await supabase.from('beneficiaires').select(BEN_SELECT_ENRICH).in('id', [...ids]);
+  const ids = [...new Set(rows.map((r) => r.beneficiaire_id).filter(Boolean).map(String))];
+  if (ids.length === 0) return rows;
+  const { data: bens, error } = await supabase.from('beneficiaires').select(BEN_SELECT_ENRICH).in('id', ids);
   if (error) {
     console.warn('[admin/transactions] enrich beneficiaires:', error.message);
     return rows;
@@ -155,8 +143,9 @@ async function enrichTransactionsWithBeneficiaires(rows) {
   if (!bens?.length) return rows;
   const map = new Map(bens.map((b) => [String(b.id), b]));
   return rows.map((row) => {
-    if (!needsBeneficiaireEnrich(row)) return row;
-    const b = map.get(String(row.beneficiaire_id));
+    const bid = row.beneficiaire_id;
+    if (bid == null || bid === '') return row;
+    const b = map.get(String(bid));
     if (!b) return row;
     return { ...row, beneficiaires: b };
   });
