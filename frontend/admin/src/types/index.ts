@@ -1,3 +1,5 @@
+import type { AdminTransactionRow } from '../api/adminApi';
+
 /** Point géographique pour l’origine ou la destination d’un flux de fonds */
 export interface TransactionGeoPoint {
   lat: number;
@@ -14,6 +16,19 @@ export interface TransactionRoute {
   receiver: TransactionGeoPoint;
 }
 
+/** Expéditeur / destinataire pour affichage tableau (client qui envoie vs bénéficiaire). */
+export interface TransactionPartyDisplay {
+  nom: string;
+  compte_ou_numero: string;
+  /** Banque (compte) vs mobile money (numéro). */
+  mode: 'banque' | 'mobile' | '—';
+}
+
+export interface TransactionParties {
+  expediteur: TransactionPartyDisplay;
+  destinataire: TransactionPartyDisplay;
+}
+
 export interface TransactionMetadata {
   date_transaction: string;
   numero_transaction: string;
@@ -26,6 +41,8 @@ export interface TransactionMetadata {
   canal: string;
   /** Présent si la transaction est géolocalisée pour la traçabilité */
   route?: TransactionRoute;
+  /** Présent si données API ou maquette enrichie. */
+  parties?: TransactionParties;
 }
 
 export interface NetworkIntelligence {
@@ -90,6 +107,18 @@ export interface TargetLabels {
 export interface Transaction {
   transaction_event: TransactionEvent;
   target_labels: TargetLabels;
+  /** Données issues de l’API admin (liste réelle). */
+  _api?: {
+    id: string;
+    riskPercent: number;
+    decision: string | null;
+    /** Scores modèles 0–100 (null si absents côté API). */
+    scoreTransaction?: number | null;
+    scoreSession?: number | null;
+    scoreComportement?: number | null;
+  };
+  /** Ligne API brute pour la modale détail (client, bénéficiaire, session, scores). */
+  _adminSource?: AdminTransactionRow;
 }
 
 export interface DashboardStats {

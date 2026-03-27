@@ -1,9 +1,30 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Transaction } from '../../types';
+import { getTransactionRiskPercent } from '../../utils/transactionRiskScore';
+import { getTransactionParties } from '../../utils/getTransactionParties';
+import { TransactionDetailModal } from './TransactionDetailModal';
+
+export interface TransactionTablePagination {
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+}
 
 interface TransactionTableProps {
   transactions: Transaction[];
+  /** Limite d’affichage (ex. 5 sur le tableau de bord). */
+  maxRows?: number;
+  /** Titre du bloc (défaut : Transactions récentes). */
+  title?: string;
+  /** Masque la barre d’actions (ex. page Transactions avec filtres en amont). */
+  hideToolbar?: boolean;
+  /** Pagination en pied de tableau (10 lignes / page, etc.). */
+  pagination?: TransactionTablePagination;
+  /** Chargement depuis l’API (pagination serveur). */
+  isLoading?: boolean;
   /** Ouvre le détail si présent dans l’URL (?tx=) */
   openTransactionNumero?: string | null;
   /** Transaction complète si absente du tableau filtré mais présente en base */
@@ -17,6 +38,11 @@ type SortOrder = 'asc' | 'desc';
 
 export function TransactionTable({
   transactions,
+  maxRows,
+  title = 'Transactions récentes',
+  hideToolbar = false,
+  pagination,
+  isLoading = false,
   openTransactionNumero,
   detailTransactionOverride,
   onCloseDetailFromUrl,
@@ -29,46 +55,11 @@ export function TransactionTable({
   useEffect(() => {
     if (!openTransactionNumero) return;
     const fromList = transactions.find(
-      (t) => t.transaction_event.metadata.numero_transaction === openTransactionNumero
+      (t) => t.transaction_event.metadata.numero_transaction === openTransactionNumero,
     );
     const resolved = fromList ?? detailTransactionOverride ?? null;
     if (resolved) setSelectedTransaction(resolved);
   }, [openTransactionNumero, transactions, detailTransactionOverride]);
-
-  const calculateRiskScore = (tx: Transaction): number => {
-    let score = 0;
-    const event = tx.transaction_event;
-    
-    // Network intelligence (25 points)
-    if (event.network_intelligence.ip_sur_liste_noire) score += 10;
-    if (event.network_intelligence.ip_datacenter) score += 5;
-    if (event.network_intelligence.ip_pays_inhabituel) score += 5;
-    if (event.network_intelligence.score_reputation_ip < 0.3) score += 5;
-
-    // Anonymization detection (25 points)
-    if (event.anonymization_detection.tor_detecte) score += 10;
-    if (event.anonymization_detection.vpn_detecte) score += 8;
-    if (event.anonymization_detection.proxy_detecte) score += 7;
-
-    // Behavioral biometrics (20 points)
-    if (event.behavioral_biometrics_ueba.nb_echecs_login_24h > 3) score += 8;
-    if (event.behavioral_biometrics_ueba.nombre_requetes_par_minute > 10) score += 6;
-    if (event.behavioral_biometrics_ueba.vitesse_frappe < 20) score += 6;
-
-    // Engineered features (15 points)
-    if (event.engineered_features_profiling.beneficiaire_nouveau) score += 5;
-    if (event.engineered_features_profiling.changement_appareil) score += 5;
-    if (event.engineered_features_profiling.vitesse_24h > 1000) score += 5;
-
-    // Relational graph (10 points)
-    if (event.relational_graph_features.nb_voisins_frauduleux > 2) score += 10;
-
-    // Security integrity (5 points)
-    if (!event.security_integrity.signature_transaction_valide) score += 3;
-    if (!event.security_integrity.certificat_valide) score += 2;
-
-    return Math.min(score, 100);
-  };
 
   const getRiskLevel = (score: number): { label: string; color: string; bg: string } => {
     if (score >= 75) return { label: 'Critique', color: 'text-red-700', bg: 'bg-red-100' };
@@ -78,8 +69,9 @@ export function TransactionTable({
   };
 
   const sortedTransactions = [...transactions].sort((a, b) => {
-    let aVal: any, bVal: any;
-    
+    let aVal: number;
+    let bVal: number;
+
     if (sortField === 'date_transaction') {
       aVal = new Date(a.transaction_event.metadata.date_transaction).getTime();
       bVal = new Date(b.transaction_event.metadata.date_transaction).getTime();
@@ -87,13 +79,16 @@ export function TransactionTable({
       aVal = a.transaction_event.metadata.montant;
       bVal = b.transaction_event.metadata.montant;
     } else {
-      aVal = calculateRiskScore(a);
-      bVal = calculateRiskScore(b);
+      aVal = getTransactionRiskPercent(a);
+      bVal = getTransactionRiskPercent(b);
     }
 
     if (sortOrder === 'asc') return aVal > bVal ? 1 : -1;
     return aVal < bVal ? 1 : -1;
   });
+
+  const displayed =
+    maxRows != null ? sortedTransactions.slice(0, Math.max(0, maxRows)) : sortedTransactions;
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -107,130 +102,216 @@ export function TransactionTable({
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return null;
     return (
-      <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortOrder === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+      <svg className="ml-1 h-3.5 w-3.5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d={sortOrder === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'}
+        />
       </svg>
     );
   };
 
+  const pag = pagination;
+  const rangeStart = pag && pag.totalItems > 0 ? (pag.page - 1) * pag.pageSize + 1 : 0;
+  const rangeEnd = pag ? Math.min(pag.page * pag.pageSize, pag.totalItems) : 0;
+
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-      <div className="p-3 sm:p-4 border-b border-neutral-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-base sm:text-lg font-semibold text-neutral-900">Transactions récentes</h2>
-        <div className="flex items-center gap-2 shrink-0">
-          <button type="button" className="px-3 py-1.5 text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors">
-            Exporter
-          </button>
-          <button type="button" className="px-3 py-1.5 text-sm font-medium text-rb-black bg-rb-yellow hover:bg-rb-yellow-dark rounded-lg transition-colors">
-            Filtrer
-          </button>
+    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-lg shadow-slate-900/[0.06] ring-1 ring-slate-900/[0.04]">
+      <div className="flex flex-col gap-2 border-b border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-amber-50/25 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3.5">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">{title}</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Cliquez sur une ligne pour le détail complet (client, bénéficiaire, session).
+          </p>
         </div>
+        {!hideToolbar && (
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              Exporter
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              Filtrer
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px]">
-          <thead className="bg-rb-page border-b border-neutral-200">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-                <button 
+      <div className="relative overflow-x-auto">
+        {isLoading && (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center bg-white/65 backdrop-blur-[1px]"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-md">
+              <span
+                className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-slate-800"
+                aria-hidden
+              />
+              Chargement…
+            </div>
+          </div>
+        )}
+        <table
+          className={`w-full min-w-[1100px] border-collapse text-left sm:min-w-[1280px] ${isLoading ? 'pointer-events-none opacity-45' : ''}`}
+        >
+          <thead>
+            <tr className="sticky top-0 z-10 border-b border-slate-200/90 bg-slate-100/98 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-600 backdrop-blur-sm sm:text-[11px]">
+              <th rowSpan={2} className="align-bottom whitespace-nowrap px-3 py-3 pl-4 sm:px-4">
+                <button
+                  type="button"
                   onClick={() => handleSort('date_transaction')}
-                  className="flex items-center hover:text-neutral-900"
+                  className="inline-flex items-center text-slate-700 transition hover:text-slate-900"
                 >
-                  Date <SortIcon field="date_transaction" />
+                  Date
+                  <SortIcon field="date_transaction" />
                 </button>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-                Transaction
+              <th rowSpan={2} className="min-w-[7rem] align-bottom whitespace-nowrap px-3 py-3 sm:px-4">
+                Référence
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-                Client
+              <th
+                colSpan={3}
+                className="border-l border-slate-200/80 bg-amber-50/50 px-2 py-2 text-center text-slate-800"
+              >
+                Expéditeur (client)
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+              <th
+                colSpan={3}
+                className="border-l border-slate-200/80 bg-slate-100/80 px-2 py-2 text-center text-slate-800"
+              >
+                Destinataire (bénéficiaire)
+              </th>
+              <th rowSpan={2} className="align-bottom whitespace-nowrap px-3 py-3 sm:px-4">
                 Type
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-                <button 
+              <th rowSpan={2} className="align-bottom whitespace-nowrap px-3 py-3 sm:px-4">
+                <button
+                  type="button"
                   onClick={() => handleSort('montant')}
-                  className="flex items-center hover:text-neutral-900"
+                  className="inline-flex items-center text-slate-700 transition hover:text-slate-900"
                 >
-                  Montant <SortIcon field="montant" />
+                  Montant
+                  <SortIcon field="montant" />
                 </button>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+              <th rowSpan={2} className="align-bottom whitespace-nowrap px-3 py-3 sm:px-4">
                 Canal
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-                <button 
+              <th rowSpan={2} className="min-w-[7rem] align-bottom whitespace-nowrap px-3 py-3 sm:px-4">
+                <button
+                  type="button"
                   onClick={() => handleSort('riskScore')}
-                  className="flex items-center hover:text-neutral-900"
+                  className="inline-flex items-center text-slate-700 transition hover:text-slate-900"
                 >
-                  Risque <SortIcon field="riskScore" />
+                  Risque
+                  <SortIcon field="riskScore" />
                 </button>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+              <th rowSpan={2} className="align-bottom whitespace-nowrap px-3 py-3 pr-4 sm:px-4">
                 Statut
               </th>
             </tr>
+            <tr className="border-b border-slate-200/90 bg-slate-50/95 text-[10px] font-medium text-slate-600 sm:text-[11px]">
+              <th className="border-l border-slate-200/80 bg-amber-50/30 px-2 py-2">Nom</th>
+              <th className="bg-amber-50/30 px-2 py-2">Compte / n°</th>
+              <th className="bg-amber-50/30 px-2 py-2">Banque / mobile</th>
+              <th className="border-l border-slate-200/80 bg-slate-100/50 px-2 py-2">Nom</th>
+              <th className="bg-slate-100/50 px-2 py-2">Compte / n°</th>
+              <th className="bg-slate-100/50 px-2 py-2">Banque / mobile</th>
+            </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-200">
-            {sortedTransactions.map((tx) => {
-              const riskScore = calculateRiskScore(tx);
+          <tbody className="divide-y divide-slate-100/90">
+            {displayed.map((tx, index) => {
+              const riskScore = getTransactionRiskPercent(tx);
               const risk = getRiskLevel(riskScore);
               const meta = tx.transaction_event.metadata;
+              const p = getTransactionParties(tx);
 
               return (
                 <tr
-                  key={meta.numero_transaction}
-                  className="hover:bg-rb-page transition-colors cursor-pointer"
+                  key={tx._api?.id ?? meta.numero_transaction ?? index}
+                  className={`group cursor-pointer transition-colors hover:bg-amber-50/45 ${
+                    index % 2 === 0 ? 'bg-white' : 'bg-slate-50/35'
+                  }`}
                   onClick={() => {
                     setSelectedTransaction(tx);
                     navigate(`/?tab=transactions&tx=${encodeURIComponent(meta.numero_transaction)}`);
                   }}
                 >
-                  <td className="px-4 py-3 text-sm text-neutral-600">
+                  <td className="whitespace-nowrap px-3 py-2.5 pl-4 text-xs text-slate-600 sm:px-4 sm:py-3 sm:text-sm">
                     {new Date(meta.date_transaction).toLocaleString('fr-FR')}
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-neutral-900">
+                  <td className="max-w-[8rem] truncate px-3 py-2.5 font-mono text-xs font-medium text-slate-900 sm:px-4 sm:py-3 sm:text-sm">
                     {meta.numero_transaction}
                   </td>
-                  <td className="px-4 py-3 text-sm text-neutral-600">
-                    {meta.id_client}
+                  <td className="max-w-[9rem] truncate border-l border-slate-100 px-2 py-3 text-xs text-slate-800 sm:text-sm">
+                    {p.expediteur.nom}
                   </td>
-                  <td className="px-4 py-3 text-sm text-neutral-600">
-                    {meta.type_transaction}
+                  <td className="max-w-[8rem] truncate px-2 py-3 font-mono text-xs text-slate-700 sm:text-sm">
+                    {p.expediteur.compte_ou_numero}
                   </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-neutral-900">
+                  <td className="px-2 py-3">
+                    <span className="inline-flex rounded-lg border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm sm:text-xs">
+                      {p.expediteurModeLabel}
+                    </span>
+                  </td>
+                  <td className="max-w-[9rem] truncate border-l border-slate-100 px-2 py-3 text-xs text-slate-800 sm:text-sm">
+                    {p.destinataire.nom}
+                  </td>
+                  <td className="max-w-[8rem] truncate px-2 py-3 font-mono text-xs text-slate-700 sm:text-sm">
+                    {p.destinataire.compte_ou_numero}
+                  </td>
+                  <td className="px-2 py-3">
+                    <span className="inline-flex rounded-lg border border-slate-200/80 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm sm:text-xs">
+                      {p.destinataireModeLabel}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-xs text-slate-700 sm:px-4 sm:text-sm">{meta.type_transaction}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-xs font-semibold tabular-nums text-slate-900 sm:px-4 sm:text-sm">
                     {meta.montant.toLocaleString('fr-FR')} {meta.devise}
                   </td>
-                  <td className="px-4 py-3 text-sm text-neutral-600">
-                    {meta.canal}
-                  </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3 text-xs text-slate-600 sm:px-4 sm:text-sm">{meta.canal}</td>
+                  <td className="px-3 py-3 sm:px-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-16 h-2 bg-neutral-200 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${
-                            riskScore >= 75 ? 'bg-red-500' :
-                            riskScore >= 50 ? 'bg-orange-500' :
-                            riskScore >= 25 ? 'bg-yellow-500' : 'bg-emerald-500'
+                      <div className="h-2 w-14 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            riskScore >= 75
+                              ? 'bg-red-500'
+                              : riskScore >= 50
+                                ? 'bg-orange-500'
+                                : riskScore >= 25
+                                  ? 'bg-amber-400'
+                                  : 'bg-emerald-500'
                           }`}
                           style={{ width: `${riskScore}%` }}
                         />
                       </div>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${risk.color} ${risk.bg}`}>
+                      <span
+                        className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold sm:text-xs ${risk.color} ${risk.bg}`}
+                      >
                         {riskScore}%
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3 pr-4 sm:px-4">
                     {tx.target_labels.cible_fraude ? (
-                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-100 rounded-full">
-                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1.5"></span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-800 sm:text-xs">
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                         Fraude
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-100 rounded-full">
-                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5"></span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 sm:text-xs">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                         Validée
                       </span>
                     )}
@@ -242,6 +323,55 @@ export function TransactionTable({
         </table>
       </div>
 
+      {pag && (
+        <div className="flex flex-col gap-3 border-t border-slate-200/90 bg-gradient-to-r from-slate-50/90 to-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <p className="text-xs text-slate-600">
+            {pag.totalItems === 0 ? (
+              'Aucune transaction pour ces filtres.'
+            ) : (
+              <>
+                Affichage{' '}
+                <span className="font-semibold tabular-nums text-slate-900">
+                  {rangeStart}–{rangeEnd}
+                </span>{' '}
+                sur <span className="font-semibold text-slate-900">{pag.totalItems}</span>
+                <span className="text-slate-400"> · </span>
+                {pag.pageSize} par page
+              </>
+            )}
+          </p>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="inline-flex items-center rounded-lg border border-slate-200/90 bg-white p-0.5 shadow-sm">
+              <button
+                type="button"
+                disabled={pag.page <= 1}
+                onClick={() => pag.onPageChange(pag.page - 1)}
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                Précédent
+              </button>
+              <span className="min-w-[6.5rem] px-2 text-center text-xs font-medium tabular-nums text-slate-800">
+                {pag.page} / {pag.pageCount}
+              </span>
+              <button
+                type="button"
+                disabled={pag.page >= pag.pageCount}
+                onClick={() => pag.onPageChange(pag.page + 1)}
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {displayed.length === 0 && !pag && (
+        <div className="border-t border-slate-100 px-5 py-10 text-center text-sm text-slate-500">
+          Aucune transaction à afficher.
+        </div>
+      )}
+
       {selectedTransaction && (
         <TransactionDetailModal
           transaction={selectedTransaction}
@@ -251,113 +381,6 @@ export function TransactionTable({
           }}
         />
       )}
-    </div>
-  );
-}
-
-function TransactionDetailModal({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
-  const event = transaction.transaction_event;
-  const meta = event.metadata;
-  const riskScore = 65; // Simplified for demo
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="p-4 sm:p-6 border-b border-neutral-200 flex items-start gap-3 justify-between">
-          <div>
-            <h3 className="text-xl font-bold text-neutral-900">Détails de la transaction</h3>
-            <p className="text-sm text-neutral-500">{meta.numero_transaction}</p>
-          </div>
-          <button onClick={onClose} className="w-10 h-10 rounded-lg hover:bg-neutral-100 flex items-center justify-center transition-colors">
-            <svg className="w-5 h-5 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="p-4 sm:p-6 space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-rb-page rounded-lg p-4">
-              <p className="text-xs font-medium text-neutral-500 uppercase">Montant</p>
-              <p className="text-2xl font-bold text-neutral-900">{meta.montant.toLocaleString('fr-FR')} {meta.devise}</p>
-            </div>
-            <div className="bg-rb-page rounded-lg p-4">
-              <p className="text-xs font-medium text-neutral-500 uppercase">Score de risque</p>
-              <p className="text-2xl font-bold text-orange-600">{riskScore}%</p>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold text-neutral-900 mb-3">Métadonnées</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div><span className="text-neutral-500">Client:</span> <span className="font-medium text-neutral-900">{meta.id_client}</span></div>
-              <div><span className="text-neutral-500">Type:</span> <span className="font-medium text-neutral-900">{meta.type_transaction}</span></div>
-              <div><span className="text-neutral-500">Canal:</span> <span className="font-medium text-neutral-900">{meta.canal}</span></div>
-              <div><span className="text-neutral-500">Date:</span> <span className="font-medium text-neutral-900">{new Date(meta.date_transaction).toLocaleString('fr-FR')}</span></div>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold text-neutral-900 mb-3">Intelligence réseau</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className={`p-3 rounded-lg ${event.network_intelligence.ip_sur_liste_noire ? 'bg-red-50 border border-red-200' : 'bg-rb-page'}`}>
-                <p className="text-xs text-neutral-500">IP sur liste noire</p>
-                <p className={`font-semibold ${event.network_intelligence.ip_sur_liste_noire ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {event.network_intelligence.ip_sur_liste_noire ? 'Oui' : 'Non'}
-                </p>
-              </div>
-              <div className={`p-3 rounded-lg ${event.network_intelligence.ip_datacenter ? 'bg-orange-50 border border-orange-200' : 'bg-rb-page'}`}>
-                <p className="text-xs text-neutral-500">IP Datacenter</p>
-                <p className={`font-semibold ${event.network_intelligence.ip_datacenter ? 'text-orange-600' : 'text-emerald-600'}`}>
-                  {event.network_intelligence.ip_datacenter ? 'Oui' : 'Non'}
-                </p>
-              </div>
-              <div className={`p-3 rounded-lg ${event.anonymization_detection.tor_detecte ? 'bg-red-50 border border-red-200' : 'bg-rb-page'}`}>
-                <p className="text-xs text-neutral-500">TOR Détecté</p>
-                <p className={`font-semibold ${event.anonymization_detection.tor_detecte ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {event.anonymization_detection.tor_detecte ? 'Oui' : 'Non'}
-                </p>
-              </div>
-              <div className={`p-3 rounded-lg ${event.anonymization_detection.vpn_detecte ? 'bg-orange-50 border border-orange-200' : 'bg-rb-page'}`}>
-                <p className="text-xs text-neutral-500">VPN Détecté</p>
-                <p className={`font-semibold ${event.anonymization_detection.vpn_detecte ? 'text-orange-600' : 'text-emerald-600'}`}>
-                  {event.anonymization_detection.vpn_detecte ? 'Oui' : 'Non'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold text-neutral-900 mb-3">Biométrie comportementale</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-              <div className="bg-rb-page rounded-lg p-3">
-                <p className="text-xs text-neutral-500">Durée session</p>
-                <p className="font-semibold text-neutral-900">{event.behavioral_biometrics_ueba.duree_session_min} min</p>
-              </div>
-              <div className="bg-rb-page rounded-lg p-3">
-                <p className="text-xs text-neutral-500">Écrans session</p>
-                <p className="font-semibold text-neutral-900">{event.behavioral_biometrics_ueba.nb_ecrans_session}</p>
-              </div>
-              <div className="bg-rb-page rounded-lg p-3">
-                <p className="text-xs text-neutral-500">Délai OTP</p>
-                <p className="font-semibold text-neutral-900">{event.behavioral_biometrics_ueba.delai_otp_s}s</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-4 border-t border-neutral-200">
-            <button type="button" className="flex-1 px-4 py-2.5 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors">
-              Approuver
-            </button>
-            <button type="button" className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors">
-              Rejeter
-            </button>
-            <button type="button" className="sm:flex-initial px-4 py-2.5 bg-neutral-100 text-neutral-700 font-medium rounded-lg hover:bg-neutral-200 transition-colors">
-              En attente
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
