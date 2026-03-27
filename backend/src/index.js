@@ -2,7 +2,7 @@
  * API minimale : GET /api/v1/admin/transactions
  * Joint clients (référence, nom, comptes), beneficiaires (mode, titulaire, téléphone, IBAN…),
  * scores_evaluation (scores des 3 modèles + décision).
- * Si la requête avec relations échoue (FK manquante), retombe sur select('*').
+ * En cas d’échec : réessaie sans session, puis sans client embarqué ; en dernier recours select('*').
  */
 import 'dotenv/config';
 import express from 'express';
@@ -64,7 +64,8 @@ const CLIENTS_ONLY = `
     telephone
   )`;
 
-const BEN_SCORE = `
+/** Bénéficiaire + scores + session (la session casse souvent la jointure en prod si FK absente). */
+const RELATIONS_WITH_SESSIONS = `
   beneficiaires:beneficiaire_id (
     id,
     mode,
@@ -83,8 +84,35 @@ const BEN_SCORE = `
     score_modele_comportement
   )`;
 
-function buildSelect(clientsFragment) {
-  return `*, ${clientsFragment}, ${BEN_SCORE}`.replace(/\s+/g, ' ').trim();
+/** Même chose sans sessions — préféré dès qu’une jointure session échoue. */
+const RELATIONS_WITHOUT_SESSIONS = `
+  beneficiaires:beneficiaire_id (
+    id,
+    mode,
+    compte_identifiant,
+    banque_code,
+    titulaire_compte,
+    telephone,
+    operateur_mobile
+  ),
+  scores_evaluation (
+    decision,
+    score_combine,
+    score_modele_transaction,
+    score_modele_session,
+    score_modele_comportement
+  )`;
+
+/**
+ * @param {string} clientsFragment - ex. clients:client_id (...)
+ * @param {string} relationsFragment - RELATIONS_* (toujours inclure beneficiaires si possible)
+ */
+function buildSelect(clientsFragment, relationsFragment) {
+  const cf = (clientsFragment || '').trim();
+  const rf = (relationsFragment || '').trim();
+  if (!rf) return '*';
+  if (!cf) return `*, ${rf}`.replace(/\s+/g, ' ').trim();
+  return `*, ${cf}, ${rf}`.replace(/\s+/g, ' ').trim();
 }
 
 app.get('/health', (_req, res) => {
@@ -153,10 +181,12 @@ app.get('/api/v1/admin/transactions', async (req, res) => {
   };
 
   const attempts = [
-    () => buildSelect(CLIENTS_WITH_COMPTES, true),
-    () => buildSelect(CLIENTS_WITH_COMPTES, false),
-    () => buildSelect(CLIENTS_ONLY, true),
-    () => buildSelect(CLIENTS_ONLY, false),
+    () => buildSelect(CLIENTS_WITH_COMPTES, RELATIONS_WITH_SESSIONS),
+    () => buildSelect(CLIENTS_WITH_COMPTES, RELATIONS_WITHOUT_SESSIONS),
+    () => buildSelect(CLIENTS_ONLY, RELATIONS_WITH_SESSIONS),
+    () => buildSelect(CLIENTS_ONLY, RELATIONS_WITHOUT_SESSIONS),
+    /** Si la FK client pose problème, au moins bénéficiaires + scores sur les colonnes `*`. */
+    () => buildSelect('', RELATIONS_WITHOUT_SESSIONS),
   ];
 
   let data;
@@ -168,7 +198,7 @@ app.get('/api/v1/admin/transactions', async (req, res) => {
     console.warn('[admin/transactions] nouvelle tentative:', error.message);
   }
   if (error) {
-    console.warn('[admin/transactions] fallback select *:', error.message);
+    console.warn('[admin/transactions] dernier recours select * (sans jointures):', error.message);
     ({ data, error, count } = await run('*'));
   }
 
