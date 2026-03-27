@@ -25,10 +25,18 @@ const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://l
   .map((s) => s.trim())
   .filter(Boolean);
 
-/** true = autorise toute origine https://*.vercel.app (previews + prod Vercel). */
+/**
+ * Autorise les origines https://*.vercel.app (admin / previews).
+ * - true si CORS_ALLOW_VERCEL=1|true
+ * - ou si le service tourne sur Render (RENDER=true) et CORS_ALLOW_VERCEL n’est pas explicitement désactivé
+ */
+const corsVercelFlag = String(process.env.CORS_ALLOW_VERCEL || '').toLowerCase();
 const corsAllowVercel =
-  String(process.env.CORS_ALLOW_VERCEL || '').toLowerCase() === 'true' ||
-  String(process.env.CORS_ALLOW_VERCEL || '').toLowerCase() === '1';
+  corsVercelFlag === 'false' || corsVercelFlag === '0'
+    ? false
+    : corsVercelFlag === 'true' ||
+      corsVercelFlag === '1' ||
+      process.env.RENDER === 'true';
 
 function isAllowedVercelOrigin(origin) {
   try {
@@ -48,6 +56,9 @@ app.use(
       if (corsAllowVercel && isAllowedVercelOrigin(origin)) return callback(null, true);
       return callback(null, false);
     },
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    optionsSuccessStatus: 204,
   }),
 );
 app.use(express.json());
@@ -309,6 +320,9 @@ app.get('/api/v1/admin/alerts', async (_req, res) => {
 const server = app.listen(PORT, () => {
   console.log(
     `Mokengeli backend http://localhost:${PORT} (GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
+  );
+  console.log(
+    `[cors] Vercel (*.vercel.app)=${corsAllowVercel} | origines listées=${corsOrigins.length} | RENDER=${process.env.RENDER ?? '—'}`,
   );
 });
 
