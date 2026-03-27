@@ -110,20 +110,23 @@ export async function fetchAdminTransactions(params?: {
   signal?: AbortSignal;
 }): Promise<AdminTransactionsResult> {
   if (!isApiConfigured()) {
-    return { ok: false, message: 'VITE_API_BASE_URL non défini — copier .env.example vers .env' };
+    return { ok: false, message: 'Configuration API indisponible' };
   }
   const page = params?.page ?? 1;
   const limit = params?.limit ?? 50;
   const base = getApiBaseUrl();
-  const url = new URL(`${base}/api/v1/admin/transactions`);
-  url.searchParams.set('page', String(page));
-  url.searchParams.set('limit', String(limit));
-  if (params?.q?.trim()) url.searchParams.set('q', params.q.trim());
-  if (params?.type && params.type !== 'all') url.searchParams.set('type', params.type);
-  if (params?.status && params.status !== 'all') url.searchParams.set('status', params.status);
+  const path = '/api/v1/admin/transactions';
+  const sp = new URLSearchParams();
+  sp.set('page', String(page));
+  sp.set('limit', String(limit));
+  if (params?.q?.trim()) sp.set('q', params.q.trim());
+  if (params?.type && params.type !== 'all') sp.set('type', params.type);
+  if (params?.status && params.status !== 'all') sp.set('status', params.status);
+  const qs = sp.toString();
+  const url = `${base}${path}?${qs}`;
 
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       signal: params?.signal,
@@ -181,7 +184,7 @@ export type AdminAlertsResult =
  */
 export async function fetchAdminAlerts(): Promise<AdminAlertsResult> {
   if (!isApiConfigured()) {
-    return { ok: false, message: 'VITE_API_BASE_URL non défini — copier .env.example vers .env' };
+    return { ok: false, message: 'Configuration API indisponible' };
   }
   const base = getApiBaseUrl();
   const url = `${base}/api/v1/admin/alerts`;
