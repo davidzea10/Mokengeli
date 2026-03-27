@@ -6,7 +6,6 @@
  */
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -51,45 +50,41 @@ function isAllowedVercelOrigin(origin) {
   }
 }
 
-const corsCommon = {
-  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'Accept',
-    'X-Requested-With',
-    'X-API-Key',
-    'apikey',
-  ],
-  optionsSuccessStatus: 204,
-  credentials: false,
-};
+const CORS_ALLOW_HEADERS =
+  'Content-Type, Authorization, Accept, X-Requested-With, X-API-Key, apikey';
+const CORS_ALLOW_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS';
+
+/**
+ * CORS manuel (sans dépendance `cors`) : en-têtes présents sur toutes les réponses, y compris 404.
+ * Mode par défaut : Access-Control-Allow-Origin=* (toutes les previews Vercel + Render).
+ * Si CORS_STRICT=true sur Render : liste CORS_ORIGINS + règle *.vercel.app si activée.
+ */
+function applyCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+  if (corsStrict) {
+    if (origin) {
+      const ok =
+        corsOrigins.includes(origin) || (corsAllowVercel && isAllowedVercelOrigin(origin));
+      if (ok) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+      }
+    }
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', CORS_ALLOW_METHODS);
+  res.setHeader('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
+}
 
 const app = express();
-if (corsStrict) {
-  app.use(
-    cors({
-      ...corsCommon,
-      origin(origin, callback) {
-        if (!origin) return callback(null, true);
-        if (corsOrigins.includes(origin)) return callback(null, true);
-        if (corsAllowVercel && isAllowedVercelOrigin(origin)) return callback(null, true);
-        return callback(null, false);
-      },
-    }),
-  );
-} else {
-  /**
-   * `origin: '*'` évite tout blocage lié aux previews Vercel (URL différente à chaque déploiement)
-   * ou à une liste Render incomplète. Pas de cookies cross-origin (credentials: false).
-   */
-  app.use(
-    cors({
-      ...corsCommon,
-      origin: '*',
-    }),
-  );
-}
+app.use((req, res, next) => {
+  applyCorsHeaders(req, res);
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 app.use(express.json());
 
 const CLIENTS_WITH_COMPTES = `
@@ -351,7 +346,7 @@ const server = app.listen(PORT, () => {
     `Mokengeli backend http://localhost:${PORT} (GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
   );
   console.log(
-    `[cors] mode=${corsStrict ? 'STRICT (liste)' : 'OPEN (*)' } | vercelAllow=${corsAllowVercel} | origins=${corsOrigins.length} | RENDER=${process.env.RENDER ?? '—'}`,
+    `[cors] mode=${corsStrict ? 'STRICT (liste)' : 'OPEN (*)'} | vercelAllow=${corsAllowVercel} | origins=${corsOrigins.length} | RENDER=${process.env.RENDER ?? '—'}`,
   );
 });
 
