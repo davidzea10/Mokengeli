@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Mokengeli">
+  <defs>
+    <linearGradient id="sq-shield" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#863bff"/>
+      <stop offset="100%" stop-color="#5b1fd4"/>
+    </linearGradient>
+    <linearGradient id="sq-accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#47bfff"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <filter id="sq-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#0c0c0e"/>
+  <g transform="translate(176 88) scale(4)">
+    <path fill="url(#sq-shield)" d="M28 4 50 14v16c0 12-10 22-22 28-12-6-22-16-22-28V14Z"/>
+    <path fill="none" stroke="url(#sq-accent)" stroke-width="1.75" stroke-linecap="round" d="M16 26h24M28 18v16"/>
+    <circle cx="40" cy="18" r="3" fill="#47bfff" filter="url(#sq-glow)"/>
+    <circle cx="18" cy="34" r="2.5" fill="#ede6ff" opacity=".92"/>
+  </g>
+  <text
+    x="256"
+    y="392"
+    text-anchor="middle"
+    font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+    font-size="56"
+    font-weight="600"
+    letter-spacing="-0.02em"
+    fill="#fafafa"
+  >mokengeli</text>
+</svg>

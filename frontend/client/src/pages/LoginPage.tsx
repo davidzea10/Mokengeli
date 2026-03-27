@@ -1,5 +1,6 @@
 import { useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AppLogo } from '../components/AppLogo';
 import { useClientSession } from '../context/ClientSessionContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -67,13 +68,11 @@ export function LoginPage() {
         )}
       </button>
       <div className="max-w-md w-full">
-        <div className="text-center mb-6 sm:mb-8">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-rb-yellow flex items-center justify-center mx-auto mb-4 shadow-xl shadow-rb-yellow/20">
-            <svg className="w-12 h-12 text-rb-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-          </div>
-          <h1 className={`text-2xl sm:text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>MOKENGELI</h1>
+        <div className="mb-6 flex flex-col items-center text-center sm:mb-8">
+          <AppLogo
+            variant="login"
+            className="mb-4 h-36 w-auto max-w-full object-contain sm:h-44"
+          />
           <p className={`text-sm sm:text-base px-2 ${isDark ? 'text-neutral-300' : 'text-gray-600'}`}>
             Espace client sécurisé
           </p>

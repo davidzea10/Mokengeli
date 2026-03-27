@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import { fetchNotificationsUnreadCount, isApiConfigured } from '../api';
+import { AppLogo } from '../components/AppLogo';
 import { useClientSession } from '../context/ClientSessionContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -64,7 +65,6 @@ export function BankLayout() {
   const navBar = isDark
     ? 'border-white/5 bg-[#0c0c0e]/98 backdrop-blur-lg'
     : 'border-gray-200 bg-white/98 shadow-[0_-8px_32px_rgba(0,0,0,0.06)] backdrop-blur-lg';
-  const titleMain = isDark ? 'text-white' : 'text-gray-900';
   const titleSub = isDark ? 'text-neutral-500' : 'text-gray-500';
   const chip = isDark
     ? 'border-white/10 bg-white/5 text-white/90 hover:bg-white/10'
@@ -82,16 +82,18 @@ export function BankLayout() {
     >
       <header className={`sticky top-0 z-40 shrink-0 border-b ${headerBar}`}>
         <div className="mx-auto flex h-11 max-w-lg items-center justify-between gap-1.5 px-3 sm:h-12 sm:max-w-4xl sm:gap-2 sm:px-4">
-          <Link to="/app/accueil" className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rb-yellow/95 shadow-sm shadow-rb-yellow/20">
-              <svg className="h-4 w-4 text-rb-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            </div>
-            <div className="min-w-0 leading-tight">
-              <p className={`truncate text-xs font-semibold tracking-tight sm:text-sm ${titleMain}`}>MOKENGELI</p>
-              <p className={`truncate text-[10px] ${titleSub}`}>Espace client</p>
-            </div>
+          <Link
+            to="/app/accueil"
+            className="flex min-w-0 flex-1 items-center gap-2"
+            title="Accueil"
+          >
+            <AppLogo
+              variant="header"
+              className="h-8 w-auto max-w-[min(220px,52vw)] shrink object-contain object-left sm:h-9"
+            />
+            <span className={`hidden max-w-[7rem] truncate text-[10px] leading-tight sm:inline ${titleSub}`}>
+              Espace client
+            </span>
           </Link>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <button
