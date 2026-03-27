@@ -1,17 +1,39 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Transaction } from '../../types';
 
 interface TransactionTableProps {
   transactions: Transaction[];
+  /** Ouvre le détail si présent dans l’URL (?tx=) */
+  openTransactionNumero?: string | null;
+  /** Transaction complète si absente du tableau filtré mais présente en base */
+  detailTransactionOverride?: Transaction | null;
+  /** Retire ?tx= de l’URL à la fermeture du détail */
+  onCloseDetailFromUrl?: () => void;
 }
 
 type SortField = 'date_transaction' | 'montant' | 'riskScore';
 type SortOrder = 'asc' | 'desc';
 
-export function TransactionTable({ transactions }: TransactionTableProps) {
+export function TransactionTable({
+  transactions,
+  openTransactionNumero,
+  detailTransactionOverride,
+  onCloseDetailFromUrl,
+}: TransactionTableProps) {
+  const navigate = useNavigate();
   const [sortField, setSortField] = useState<SortField>('date_transaction');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
+  useEffect(() => {
+    if (!openTransactionNumero) return;
+    const fromList = transactions.find(
+      (t) => t.transaction_event.metadata.numero_transaction === openTransactionNumero
+    );
+    const resolved = fromList ?? detailTransactionOverride ?? null;
+    if (resolved) setSelectedTransaction(resolved);
+  }, [openTransactionNumero, transactions, detailTransactionOverride]);
 
   const calculateRiskScore = (tx: Transaction): number => {
     let score = 0;
@@ -151,16 +173,19 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200">
-            {sortedTransactions.map((tx, index) => {
+            {sortedTransactions.map((tx) => {
               const riskScore = calculateRiskScore(tx);
               const risk = getRiskLevel(riskScore);
               const meta = tx.transaction_event.metadata;
 
               return (
-                <tr 
-                  key={index}
+                <tr
+                  key={meta.numero_transaction}
                   className="hover:bg-rb-page transition-colors cursor-pointer"
-                  onClick={() => setSelectedTransaction(tx)}
+                  onClick={() => {
+                    setSelectedTransaction(tx);
+                    navigate(`/?tab=transactions&tx=${encodeURIComponent(meta.numero_transaction)}`);
+                  }}
                 >
                   <td className="px-4 py-3 text-sm text-neutral-600">
                     {new Date(meta.date_transaction).toLocaleString('fr-FR')}
@@ -218,9 +243,12 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
       </div>
 
       {selectedTransaction && (
-        <TransactionDetailModal 
-          transaction={selectedTransaction} 
-          onClose={() => setSelectedTransaction(null)} 
+        <TransactionDetailModal
+          transaction={selectedTransaction}
+          onClose={() => {
+            setSelectedTransaction(null);
+            onCloseDetailFromUrl?.();
+          }}
         />
       )}
     </div>

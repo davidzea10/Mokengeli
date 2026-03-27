@@ -1,3 +1,19 @@
+/** Point géographique pour l’origine ou la destination d’un flux de fonds */
+export interface TransactionGeoPoint {
+  lat: number;
+  lng: number;
+  /** Rôle affiché sur la carte (émetteur / bénéficiaire) */
+  label: string;
+  city: string;
+  countryCode: string;
+}
+
+/** Trajet approximatif entre parties (coordonnées issues du canal / KYC géolocalisé) */
+export interface TransactionRoute {
+  sender: TransactionGeoPoint;
+  receiver: TransactionGeoPoint;
+}
+
 export interface TransactionMetadata {
   date_transaction: string;
   numero_transaction: string;
@@ -8,6 +24,8 @@ export interface TransactionMetadata {
   jour_semaine: number;
   type_transaction: string;
   canal: string;
+  /** Présent si la transaction est géolocalisée pour la traçabilité */
+  route?: TransactionRoute;
 }
 
 export interface NetworkIntelligence {

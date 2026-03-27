@@ -5,3 +5,4 @@ export { TransactionTable } from './TransactionTable';
 export { RiskChart } from './RiskChart';
 export { AlertsPanel } from './AlertsPanel';
 export { SettingsPanel } from './SettingsPanel';
+export { TransactionMapPanel } from './TransactionMapPanel';

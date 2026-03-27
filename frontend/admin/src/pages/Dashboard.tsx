@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/dashboard/Sidebar';
 import { Header } from '../components/dashboard/Header';
 import { StatsCard } from '../components/dashboard/StatsCard';
@@ -6,295 +7,8 @@ import { TransactionTable } from '../components/dashboard/TransactionTable';
 import { RiskChart } from '../components/dashboard/RiskChart';
 import { AlertsPanel } from '../components/dashboard/AlertsPanel';
 import { SettingsPanel } from '../components/dashboard/SettingsPanel';
-import type { Transaction } from '../types';
-
-const mockTransactions: Transaction[] = [
-  {
-    transaction_event: {
-      metadata: {
-        date_transaction: '2024-03-24T10:30:00Z',
-        numero_transaction: 'TXN-2024-001247',
-        id_client: 'CLT-89234',
-        montant: 2500.00,
-        devise: 'EUR',
-        heure: 10,
-        jour_semaine: 1,
-        type_transaction: 'Virement',
-        canal: 'Mobile'
-      },
-      network_intelligence: {
-        score_reputation_ip: 0.85,
-        ip_datacenter: false,
-        ip_pays_inhabituel: false,
-        ip_sur_liste_noire: false
-      },
-      anonymization_detection: {
-        tor_detecte: false,
-        vpn_detecte: false,
-        proxy_detecte: false
-      },
-      behavioral_biometrics_ueba: {
-        duree_session_min: 15.5,
-        nb_ecrans_session: 4,
-        delai_otp_s: 30,
-        nb_echecs_login_24h: 0,
-        vitesse_frappe: 45,
-        entropie_souris: 0.75,
-        nombre_requetes_par_minute: 3
-      },
-      engineered_features_profiling: {
-        vitesse_24h: 500,
-        ratio_montant_median_30j: 1.2,
-        beneficiaire_nouveau: false,
-        distance_km_habitude: 5,
-        changement_appareil: false
-      },
-      relational_graph_features: {
-        degre_client: 3,
-        nb_voisins_frauduleux: 0,
-        score_reseau: 0.9
-      },
-      security_integrity: {
-        signature_transaction_valide: true,
-        certificat_valide: true,
-        score_confiance_client_api: 0.95
-      }
-    },
-    target_labels: {
-      cible_fraude: false,
-      cible_session_anormale: false,
-      cible_comportement_atypique: false
-    }
-  },
-  {
-    transaction_event: {
-      metadata: {
-        date_transaction: '2024-03-24T11:45:00Z',
-        numero_transaction: 'TXN-2024-001248',
-        id_client: 'CLT-12456',
-        montant: 15000.00,
-        devise: 'EUR',
-        heure: 11,
-        jour_semaine: 1,
-        type_transaction: 'Paiement',
-        canal: 'Web'
-      },
-      network_intelligence: {
-        score_reputation_ip: 0.15,
-        ip_datacenter: true,
-        ip_pays_inhabituel: true,
-        ip_sur_liste_noire: true
-      },
-      anonymization_detection: {
-        tor_detecte: true,
-        vpn_detecte: true,
-        proxy_detecte: false
-      },
-      behavioral_biometrics_ueba: {
-        duree_session_min: 2.5,
-        nb_ecrans_session: 1,
-        delai_otp_s: 180,
-        nb_echecs_login_24h: 5,
-        vitesse_frappe: 120,
-        entropie_souris: 0.1,
-        nombre_requetes_par_minute: 15
-      },
-      engineered_features_profiling: {
-        vitesse_24h: 5000,
-        ratio_montant_median_30j: 5.0,
-        beneficiaire_nouveau: true,
-        distance_km_habitude: 500,
-        changement_appareil: true
-      },
-      relational_graph_features: {
-        degre_client: 8,
-        nb_voisins_frauduleux: 3,
-        score_reseau: 0.2
-      },
-      security_integrity: {
-        signature_transaction_valide: false,
-        certificat_valide: false,
-        score_confiance_client_api: 0.1
-      }
-    },
-    target_labels: {
-      cible_fraude: true,
-      cible_session_anormale: true,
-      cible_comportement_atypique: true
-    }
-  },
-  {
-    transaction_event: {
-      metadata: {
-        date_transaction: '2024-03-24T12:15:00Z',
-        numero_transaction: 'TXN-2024-001249',
-        id_client: 'CLT-45678',
-        montant: 750.00,
-        devise: 'EUR',
-        heure: 12,
-        jour_semaine: 1,
-        type_transaction: 'Achat',
-        canal: 'Mobile'
-      },
-      network_intelligence: {
-        score_reputation_ip: 0.7,
-        ip_datacenter: false,
-        ip_pays_inhabituel: false,
-        ip_sur_liste_noire: false
-      },
-      anonymization_detection: {
-        tor_detecte: false,
-        vpn_detecte: true,
-        proxy_detecte: false
-      },
-      behavioral_biometrics_ueba: {
-        duree_session_min: 8.0,
-        nb_ecrans_session: 3,
-        delai_otp_s: 45,
-        nb_echecs_login_24h: 1,
-        vitesse_frappe: 55,
-        entropie_souris: 0.6,
-        nombre_requetes_par_minute: 5
-      },
-      engineered_features_profiling: {
-        vitesse_24h: 800,
-        ratio_montant_median_30j: 0.8,
-        beneficiaire_nouveau: false,
-        distance_km_habitude: 10,
-        changement_appareil: false
-      },
-      relational_graph_features: {
-        degre_client: 2,
-        nb_voisins_frauduleux: 0,
-        score_reseau: 0.85
-      },
-      security_integrity: {
-        signature_transaction_valide: true,
-        certificat_valide: true,
-        score_confiance_client_api: 0.8
-      }
-    },
-    target_labels: {
-      cible_fraude: false,
-      cible_session_anormale: false,
-      cible_comportement_atypique: false
-    }
-  },
-  {
-    transaction_event: {
-      metadata: {
-        date_transaction: '2024-03-24T13:00:00Z',
-        numero_transaction: 'TXN-2024-001250',
-        id_client: 'CLT-78901',
-        montant: 3200.00,
-        devise: 'EUR',
-        heure: 13,
-        jour_semaine: 1,
-        type_transaction: 'Virement',
-        canal: 'Guichet'
-      },
-      network_intelligence: {
-        score_reputation_ip: 0.9,
-        ip_datacenter: false,
-        ip_pays_inhabituel: false,
-        ip_sur_liste_noire: false
-      },
-      anonymization_detection: {
-        tor_detecte: false,
-        vpn_detecte: false,
-        proxy_detecte: false
-      },
-      behavioral_biometrics_ueba: {
-        duree_session_min: 20.0,
-        nb_ecrans_session: 6,
-        delai_otp_s: 25,
-        nb_echecs_login_24h: 0,
-        vitesse_frappe: 40,
-        entropie_souris: 0.8,
-        nombre_requetes_par_minute: 2
-      },
-      engineered_features_profiling: {
-        vitesse_24h: 300,
-        ratio_montant_median_30j: 1.1,
-        beneficiaire_nouveau: false,
-        distance_km_habitude: 2,
-        changement_appareil: false
-      },
-      relational_graph_features: {
-        degre_client: 5,
-        nb_voisins_frauduleux: 1,
-        score_reseau: 0.7
-      },
-      security_integrity: {
-        signature_transaction_valide: true,
-        certificat_valide: true,
-        score_confiance_client_api: 0.92
-      }
-    },
-    target_labels: {
-      cible_fraude: false,
-      cible_session_anormale: false,
-      cible_comportement_atypique: false
-    }
-  },
-  {
-    transaction_event: {
-      metadata: {
-        date_transaction: '2024-03-24T14:30:00Z',
-        numero_transaction: 'TXN-2024-001251',
-        id_client: 'CLT-34567',
-        montant: 8500.00,
-        devise: 'EUR',
-        heure: 14,
-        jour_semaine: 1,
-        type_transaction: 'Paiement',
-        canal: 'Web'
-      },
-      network_intelligence: {
-        score_reputation_ip: 0.4,
-        ip_datacenter: true,
-        ip_pays_inhabituel: true,
-        ip_sur_liste_noire: false
-      },
-      anonymization_detection: {
-        tor_detecte: false,
-        vpn_detecte: true,
-        proxy_detecte: true
-      },
-      behavioral_biometrics_ueba: {
-        duree_session_min: 3.0,
-        nb_ecrans_session: 2,
-        delai_otp_s: 90,
-        nb_echecs_login_24h: 3,
-        vitesse_frappe: 85,
-        entropie_souris: 0.3,
-        nombre_requetes_par_minute: 8
-      },
-      engineered_features_profiling: {
-        vitesse_24h: 2500,
-        ratio_montant_median_30j: 3.5,
-        beneficiaire_nouveau: true,
-        distance_km_habitude: 200,
-        changement_appareil: true
-      },
-      relational_graph_features: {
-        degre_client: 6,
-        nb_voisins_frauduleux: 2,
-        score_reseau: 0.4
-      },
-      security_integrity: {
-        signature_transaction_valide: true,
-        certificat_valide: false,
-        score_confiance_client_api: 0.5
-      }
-    },
-    target_labels: {
-      cible_fraude: false,
-      cible_session_anormale: true,
-      cible_comportement_atypique: true
-    }
-  }
-];
+import { TransactionMapPanel } from '../components/dashboard/TransactionMapPanel';
+import { mockTransactions } from '../data/mockTransactions';
 
 const chartData = [
   { date: 'Lun', value: 180, fraud: 5 },
@@ -306,20 +20,82 @@ const chartData = [
   { date: 'Dim', value: 82, fraud: 2 },
 ];
 
-const mockClients = [
-  { id: 'C-501', name: 'John Doe', segment: 'Particulier', score: 15, status: 'Actif' },
-  { id: 'C-502', name: 'Jane Smith', segment: 'Particulier', score: 72, status: 'Surveillance' },
-  { id: 'C-503', name: 'Acme Corp', segment: 'Entreprise', score: 25, status: 'Actif' },
-  { id: 'C-504', name: 'Bob Martin', segment: 'Particulier', score: 89, status: 'Bloqué' },
-  { id: 'C-505', name: 'Alice Dubois', segment: 'VIP', score: 8, status: 'Actif' },
-] as const;
+const VALID_TABS = new Set([
+  'dashboard',
+  'transactions',
+  'alerts',
+  'carte',
+  'analytics',
+  'settings',
+]);
 
 interface DashboardProps {
   activeTab?: string;
 }
 
 export function Dashboard({ activeTab: initialTab }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState(initialTab || 'dashboard');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const txFromUrl = searchParams.get('tx');
+
+  const [activeTab, setActiveTab] = useState(() => {
+    if (initialTab) return initialTab;
+    if (tabFromUrl && VALID_TABS.has(tabFromUrl)) return tabFromUrl;
+    return 'dashboard';
+  });
+
+  useEffect(() => {
+    if (tabFromUrl && VALID_TABS.has(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
+
+  useEffect(() => {
+    if (tabFromUrl === 'clients') {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.set('tab', 'dashboard');
+          return n;
+        },
+        { replace: true }
+      );
+      setActiveTab('dashboard');
+    }
+  }, [tabFromUrl, setSearchParams]);
+
+  const detailTxFromUrl = useMemo(() => {
+    if (!txFromUrl) return null;
+    return (
+      mockTransactions.find((t) => t.transaction_event.metadata.numero_transaction === txFromUrl) ?? null
+    );
+  }, [txFromUrl]);
+
+  const syncTabToUrl = useCallback(
+    (id: string) => {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.set('tab', id);
+          if (id !== 'transactions') n.delete('tx');
+          return n;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
+  const clearTxFromUrl = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.delete('tx');
+        return n;
+      },
+      { replace: true }
+    );
+  }, [setSearchParams]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -348,8 +124,6 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const [clientSearchQuery, setClientSearchQuery] = useState('');
-  
   // Filter transactions based on search and filters
   const filteredTransactions = mockTransactions.filter(tx => {
     const matchesSearch = searchQuery === '' || 
@@ -366,18 +140,6 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const qClients = clientSearchQuery.trim().toLowerCase();
-  const filteredClients = mockClients.filter((client) => {
-    if (!qClients) return true;
-    return (
-      client.id.toLowerCase().includes(qClients) ||
-      client.name.toLowerCase().includes(qClients) ||
-      client.segment.toLowerCase().includes(qClients) ||
-      client.status.toLowerCase().includes(qClients) ||
-      String(client.score).includes(qClients)
-    );
-  });
-
   const stats = {
     totalTransactions: 12547,
     fraudDetected: 342,
@@ -390,8 +152,8 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
       case 'dashboard': return 'Tableau de bord';
       case 'transactions': return 'Transactions';
       case 'alerts': return 'Alertes';
+      case 'carte': return 'Carte des flux';
       case 'analytics': return 'Analytique';
-      case 'clients': return 'Clients';
       case 'settings': return 'Paramètres';
       default: return 'Tableau de bord';
     }
@@ -402,8 +164,9 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
       case 'dashboard': return 'Aperçu en temps réel de l\'activité anti-fraude';
       case 'transactions': return 'Historique de toutes les transactions analysées';
       case 'alerts': return 'Alertes de fraude en attente d\'analyse';
+      case 'carte':
+        return 'Localisation des flux entre émetteurs et bénéficiaires';
       case 'analytics': return 'Statistiques et métriques';
-      case 'clients': return 'Gestion des clients';
       case 'settings': return 'Configuration du système';
       default: return '';
     }
@@ -423,6 +186,7 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
         activeTab={activeTab}
         onTabChange={(id) => {
           setActiveTab(id);
+          syncTabToUrl(id);
           setMobileNavOpen(false);
         }}
         collapsed={sidebarCollapsed}
@@ -562,7 +326,12 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
                 </div>
               )}
               
-              <TransactionTable transactions={filteredTransactions} />
+              <TransactionTable
+                transactions={filteredTransactions}
+                openTransactionNumero={txFromUrl}
+                detailTransactionOverride={detailTxFromUrl}
+                onCloseDetailFromUrl={clearTxFromUrl}
+              />
             </div>
           )}
 
@@ -610,6 +379,25 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
             </div>
           )}
 
+          {activeTab === 'carte' && (
+            <div className="space-y-4">
+              <TransactionMapPanel
+                transactions={mockTransactions}
+                onNavigateToTransaction={(numero) => {
+                  setActiveTab('transactions');
+                  setSearchParams(
+                    (prev) => {
+                      const n = new URLSearchParams(prev);
+                      n.set('tab', 'transactions');
+                      n.set('tx', numero);
+                      return n;
+                    },
+                    { replace: false }
+                  );
+                }}
+              />
+            </div>
+          )}
 
           {activeTab === 'analytics' && (
             <div className="space-y-6">
@@ -689,116 +477,6 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
               </div>
             </div>
           )}
-
-          {activeTab === 'clients' && (
-            <div className="bg-white rounded-xl border border-neutral-200/80 shadow-sm p-4 sm:p-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-                <h2 className="text-lg sm:text-xl font-semibold text-rb-black">Gestion des Clients</h2>
-                <button type="button" className="w-full sm:w-auto px-4 py-2.5 bg-rb-yellow text-rb-black rounded-lg hover:bg-rb-yellow-dark text-sm font-medium shrink-0 shadow-sm shadow-rb-yellow/25">
-                  Ajouter un client
-                </button>
-              </div>
-
-              <div className="relative mb-4">
-                <label htmlFor="client-search" className="sr-only">
-                  Rechercher un client
-                </label>
-                <svg
-                  className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  id="client-search"
-                  type="search"
-                  value={clientSearchQuery}
-                  onChange={(e) => setClientSearchQuery(e.target.value)}
-                  placeholder="Rechercher par ID, nom, segment, statut ou score…"
-                  autoComplete="off"
-                  className="w-full rounded-xl border border-neutral-200 bg-rb-page/90 py-2.5 pl-10 pr-10 text-sm text-rb-black placeholder:text-neutral-400 outline-none transition focus:border-rb-yellow focus:bg-white focus:ring-2 focus:ring-rb-yellow/25"
-                />
-                {clientSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setClientSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-neutral-400 hover:bg-rb-yellow-muted hover:text-neutral-700"
-                    aria-label="Effacer la recherche"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              {qClients && (
-                <p className="mb-3 text-sm text-neutral-500">
-                  {filteredClients.length} résultat{filteredClients.length !== 1 ? 's' : ''}
-                  {filteredClients.length === 0 && ' — essayez un autre terme'}
-                </p>
-              )}
-
-              <div className="overflow-x-auto -mx-1 px-1 sm:mx-0 sm:px-0">
-                <table className="w-full min-w-[640px]">
-                  <thead>
-                    <tr className="border-b border-neutral-200 bg-rb-page/90">
-                      <th className="text-left py-3 px-3 sm:px-4 text-xs font-semibold uppercase tracking-wide text-neutral-600 whitespace-nowrap">ID Client</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-neutral-600">Nom</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-neutral-600">Segment</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-neutral-600">Score Moyen</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-neutral-600">Statut</th>
-                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-neutral-600">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredClients.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-12 text-center text-sm text-neutral-500">
-                          Aucun client ne correspond à votre recherche.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredClients.map((client) => (
-                        <tr key={client.id} className="border-b border-neutral-100 hover:bg-rb-yellow-muted/40">
-                          <td className="py-3 px-4 text-sm font-medium text-rb-black">{client.id}</td>
-                          <td className="py-3 px-4 text-sm text-neutral-800">{client.name}</td>
-                          <td className="py-3 px-4 text-sm text-neutral-600">{client.segment}</td>
-                          <td className="py-3 px-4 text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              client.score < 30 ? 'bg-green-100 text-green-800' :
-                              client.score < 70 ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {client.score}%
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              client.status === 'Actif' ? 'bg-green-100 text-green-800' :
-                              client.status === 'Surveillance' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {client.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <button type="button" className="text-rb-yellow-dark hover:text-rb-black text-sm font-medium">
-                              Voir
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
 
           {activeTab === 'settings' && <SettingsPanel />}
         </div>

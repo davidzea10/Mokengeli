@@ -14,7 +14,7 @@ const mockAlerts: Alert[] = [
     title: 'Fraude détectée',
     description: 'Transaction suspecte de 15,000€ identifiée - IPTOR détectée',
     time: 'Il y a 5 min',
-    transactionId: 'TXN-2024-001248'
+    transactionId: 'TXN-2024-000002'
   },
   {
     id: '2',
@@ -22,13 +22,13 @@ const mockAlerts: Alert[] = [
     title: 'Comportement atypique',
     description: 'Multiple tentatives de connexion échouées',
     time: 'Il y a 12 min',
-    transactionId: 'TXN-2024-001251'
+    transactionId: 'TXN-2024-000031'
   },
   {
     id: '3',
     severity: 'info',
     title: 'Changement d\'appareil',
-    description: 'Nouveau dispositif détecté pour le client CLT-34567',
+    description: 'Nouveau dispositif détecté pour le client CLT-10045',
     time: 'Il y a 25 min'
   },
   {
