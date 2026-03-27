@@ -25,8 +25,31 @@ const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://l
   .map((s) => s.trim())
   .filter(Boolean);
 
+/** true = autorise toute origine https://*.vercel.app (previews + prod Vercel). */
+const corsAllowVercel =
+  String(process.env.CORS_ALLOW_VERCEL || '').toLowerCase() === 'true' ||
+  String(process.env.CORS_ALLOW_VERCEL || '').toLowerCase() === '1';
+
+function isAllowedVercelOrigin(origin) {
+  try {
+    const u = new URL(origin);
+    return u.protocol === 'https:' && u.hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
 const app = express();
-app.use(cors({ origin: corsOrigins.length ? corsOrigins : true }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (corsOrigins.includes(origin)) return callback(null, true);
+      if (corsAllowVercel && isAllowedVercelOrigin(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+  }),
+);
 app.use(express.json());
 
 const CLIENTS_WITH_COMPTES = `
