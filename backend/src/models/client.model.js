@@ -18,11 +18,11 @@ async function findClientAuthRow(identifier) {
     return { data: null };
   }
 
-  const cols =
+  const cols = 
     'id, reference_client, password_hash, nom_complet, email, telephone';
 
   const { data: byRef, error: e1 } = await db
-    .from('clients')
+    .from('clients') 
     .select(cols)
     .eq('reference_client', raw)
     .maybeSingle();

@@ -1,9 +1,23 @@
-interface RiskChartProps {
-  data: { date: string; value: number; fraud: number }[];
+export interface RiskChartSummary {
+  total: number;
+  validatedPct: number;
+  suspectPct: number;
+  fraudPct: number;
 }
 
-export function RiskChart({ data }: RiskChartProps) {
-  const maxValue = Math.max(...data.map(d => d.value));
+interface RiskChartProps {
+  data: { date: string; value: number; fraud: number }[];
+  /** Si défini (données API), remplace les pourcentages statiques du pied de carte. */
+  summary?: RiskChartSummary | null;
+}
+
+function formatPct(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '0%';
+  return `${Math.round(n)}%`;
+}
+
+export function RiskChart({ data, summary }: RiskChartProps) {
+  const maxValue = Math.max(1, ...data.flatMap((d) => [d.value, d.fraud]));
   
   return (
     <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6">
@@ -46,19 +60,27 @@ export function RiskChart({ data }: RiskChartProps) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 pt-6 border-t border-neutral-200">
         <div className="text-center rounded-lg bg-rb-page py-3 px-2">
-          <p className="text-xl sm:text-2xl font-bold text-rb-black tabular-nums">1,247</p>
+          <p className="text-xl sm:text-2xl font-bold text-rb-black tabular-nums">
+            {summary != null ? summary.total.toLocaleString('fr-FR') : '—'}
+          </p>
           <p className="text-xs text-neutral-500">Total</p>
         </div>
         <div className="text-center rounded-lg bg-rb-page py-3 px-2">
-          <p className="text-xl sm:text-2xl font-bold text-emerald-600 tabular-nums">89%</p>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-600 tabular-nums">
+            {summary != null ? formatPct(summary.validatedPct) : '—'}
+          </p>
           <p className="text-xs text-neutral-500">Validées</p>
         </div>
         <div className="text-center rounded-lg bg-rb-page py-3 px-2">
-          <p className="text-xl sm:text-2xl font-bold text-orange-600 tabular-nums">8%</p>
+          <p className="text-xl sm:text-2xl font-bold text-orange-600 tabular-nums">
+            {summary != null ? formatPct(summary.suspectPct) : '—'}
+          </p>
           <p className="text-xs text-neutral-500">Suspectes</p>
         </div>
         <div className="text-center rounded-lg bg-rb-page py-3 px-2">
-          <p className="text-xl sm:text-2xl font-bold text-red-600 tabular-nums">3%</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-600 tabular-nums">
+            {summary != null ? formatPct(summary.fraudPct) : '—'}
+          </p>
           <p className="text-xs text-neutral-500">Fraudes</p>
         </div>
       </div>

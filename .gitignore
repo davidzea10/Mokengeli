@@ -1,31 +1,24 @@
-## Dépendances (ne jamais committer)
-node_modules/
+# Dépendances & builds
+**/node_modules/
+**/dist/
+**/dist-ssr/
 
-## Secrets locaux (jamais committer)
-.env
-.env.*
-!.env.example
-.env.local
-.env.*.local
+# Secrets (les .env.example restent versionnés)
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
 
-## Build / logs
-dist/
-build/
+# Logs
 *.log
-coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-## IDE / OS
+# OS / IDE
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
-
-## Python (au cas où)
-__pycache__/
-*.pyc
-.venv/
-venv/
-.ipynb_checkpoints/
-
-# Certificats TLS locaux (ne pas versionner)
-certs/
+.idea
+.vscode/*
+!.vscode/extensions.json
