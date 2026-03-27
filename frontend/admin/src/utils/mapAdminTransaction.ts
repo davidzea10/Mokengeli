@@ -88,6 +88,34 @@ function asRecord(v: unknown): Record<string, unknown> | null {
   return null;
 }
 
+/**
+ * `reference_beneficiaire` en base : souvent « Titulaire · Banque · compte » (cf. docs/req.md, colonne t.reference_beneficiaire).
+ */
+function parseReferenceBeneficiaireDisplay(ref: string): TransactionPartyDisplay | null {
+  const t = ref.trim();
+  if (!t) return null;
+  const parts = t
+    .split(/\s*·\s*/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (parts.length >= 3) {
+    const [nom, , compte] = parts;
+    return {
+      nom: nom || '—',
+      compte_ou_numero: compte || '—',
+      mode: 'banque',
+    };
+  }
+  if (parts.length === 2) {
+    return {
+      nom: parts[0] || '—',
+      compte_ou_numero: parts[1] || '—',
+      mode: 'banque',
+    };
+  }
+  return null;
+}
+
 function pickBeneficiaryFromRaw(row: AdminTransactionRow): TransactionPartyDisplay | null {
   let raw: unknown = row.raw_payload;
   if (typeof raw === 'string') {
@@ -196,6 +224,9 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
     }
   }
 
+  const parsedRef = parseReferenceBeneficiaireDisplay(ref);
+  if (parsedRef) return parsedRef;
+
   const fromRaw = pickBeneficiaryFromRaw(row);
   if (fromRaw) return fromRaw;
 
@@ -211,7 +242,7 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
   if (bid) {
     const short = bid.length > 14 ? `${bid.slice(0, 8)}…` : bid;
     return {
-      nom: short,
+      nom: '—',
       compte_ou_numero: short,
       mode: 'banque',
     };
@@ -222,9 +253,11 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
 
 function buildExpediteur(row: AdminTransactionRow, canal: string): TransactionPartyDisplay {
   const { ref, name, comptePrincipal } = pickClient(row);
-  const compte = comptePrincipal || ref;
+  /** Compte débité = numero_compte (req.md : cb.numero_compte), pas la référence métier. */
+  const compte =
+    comptePrincipal && comptePrincipal.trim() !== '' ? comptePrincipal.trim() : '—';
   return {
-    nom: name || ref,
+    nom: (name || ref).trim() || '—',
     compte_ou_numero: compte,
     mode: canalToMode(canal),
   };

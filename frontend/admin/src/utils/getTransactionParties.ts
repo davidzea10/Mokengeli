@@ -14,7 +14,14 @@ export function canalToMode(canal: string): CanalMode {
   const c = canal.toLowerCase();
   if (c.includes('mobile') || c.includes('ussd') || c.includes('m-pesa') || c.includes('mpesa'))
     return 'mobile';
-  if (c.includes('web') || c.includes('agence') || c.includes('virement') || c.includes('banque'))
+  if (
+    c.includes('web') ||
+    c.includes('agence') ||
+    c.includes('virement') ||
+    c.includes('banque') ||
+    c === 'app' ||
+    c.includes('application')
+  )
     return 'banque';
   return '—';
 }
