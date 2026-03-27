@@ -65,6 +65,7 @@ const CLIENTS_ONLY = `
   )`;
 
 /** Bénéficiaire + scores + session (la session casse souvent la jointure en prod si FK absente). */
+/** Colonnes alignées sur le schéma réel : pas de nom_complet / banque_nom si absent en base (sinon PostgREST échoue). */
 const RELATIONS_WITH_SESSIONS = `
   beneficiaires:beneficiaire_id (
     id,
@@ -73,11 +74,7 @@ const RELATIONS_WITH_SESSIONS = `
     banque_code,
     titulaire_compte,
     telephone,
-    operateur_mobile,
-    nom_complet,
-    numero_compte,
-    type_canal,
-    banque_nom
+    operateur_mobile
   ),
   sessions:session_id (*),
   scores_evaluation (
@@ -97,11 +94,7 @@ const RELATIONS_WITHOUT_SESSIONS = `
     banque_code,
     titulaire_compte,
     telephone,
-    operateur_mobile,
-    nom_complet,
-    numero_compte,
-    type_canal,
-    banque_nom
+    operateur_mobile
   ),
   scores_evaluation (
     decision,
@@ -124,7 +117,7 @@ function buildSelect(clientsFragment, relationsFragment) {
 }
 
 const BEN_SELECT_ENRICH =
-  'id, mode, compte_identifiant, banque_code, titulaire_compte, telephone, operateur_mobile, nom_complet, numero_compte, type_canal, banque_nom';
+  'id, mode, compte_identifiant, banque_code, titulaire_compte, telephone, operateur_mobile';
 
 /**
  * Recharge **toutes** les lignes `beneficiaires` par `beneficiaire_id` et fusionne dans la réponse.
