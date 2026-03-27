@@ -19,60 +19,16 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-/**
- * Mode strict (liste + *.vercel.app) : CORS_STRICT=true
- * Sinon : réflexion de l’origine (origin: true) — compatible Vercel previews, domaines custom, Render, local.
- * Les clés API / secrets restent côté serveur ; CORS ne sécurise pas l’API seul.
- */
-const corsStrict =
-  String(process.env.CORS_STRICT || '').toLowerCase() === 'true' ||
-  String(process.env.CORS_STRICT || '').toLowerCase() === '1';
-
-const corsVercelFlag = String(process.env.CORS_ALLOW_VERCEL || '').toLowerCase();
-const corsAllowVercel =
-  corsVercelFlag === 'false' || corsVercelFlag === '0'
-    ? false
-    : corsVercelFlag === 'true' ||
-      corsVercelFlag === '1' ||
-      process.env.RENDER === 'true';
-
-function isAllowedVercelOrigin(origin) {
-  try {
-    const u = new URL(origin);
-    return u.protocol === 'https:' && u.hostname.endsWith('.vercel.app');
-  } catch {
-    return false;
-  }
-}
-
 const CORS_ALLOW_HEADERS =
   'Content-Type, Authorization, Accept, X-Requested-With, X-API-Key, apikey';
 const CORS_ALLOW_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS';
 
 /**
- * CORS manuel (sans dépendance `cors`) : en-têtes présents sur toutes les réponses, y compris 404.
- * Mode par défaut : Access-Control-Allow-Origin=* (toutes les previews Vercel + Render).
- * Si CORS_STRICT=true sur Render : liste CORS_ORIGINS + règle *.vercel.app si activée.
+ * CORS manuel : toujours Access-Control-Allow-Origin=* (évite les erreurs si une preview Vercel
+ * n’est pas dans une liste sur Render). La sécurité repose sur l’auth API, pas sur CORS.
  */
-function applyCorsHeaders(req, res) {
-  const origin = req.headers.origin;
-  if (corsStrict) {
-    if (origin) {
-      const ok =
-        corsOrigins.includes(origin) || (corsAllowVercel && isAllowedVercelOrigin(origin));
-      if (ok) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Vary', 'Origin');
-      }
-    }
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
+function applyCorsHeaders(_req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', CORS_ALLOW_METHODS);
   res.setHeader('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
 }
@@ -345,9 +301,7 @@ const server = app.listen(PORT, () => {
   console.log(
     `Mokengeli backend http://localhost:${PORT} (GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
   );
-  console.log(
-    `[cors] mode=${corsStrict ? 'STRICT (liste)' : 'OPEN (*)'} | vercelAllow=${corsAllowVercel} | origins=${corsOrigins.length} | RENDER=${process.env.RENDER ?? '—'}`,
-  );
+  console.log('[cors] Access-Control-Allow-Origin=*');
 });
 
 server.on('error', (err) => {
