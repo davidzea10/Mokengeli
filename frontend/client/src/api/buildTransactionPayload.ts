@@ -142,7 +142,55 @@ export interface EvaluateTransactionOptions {
 }
 
 /**
+ * Blocs obligatoires pour les API qui valident le schéma `transaction_event` complet (sinon 422).
+ * Clés en français, alignées sur `docs` / types admin.
+ */
+function buildFrenchTransactionEventBlocks(form: ClientFormLike, montant: number) {
+  return {
+    network_intelligence: {
+      score_reputation_ip: 0.5,
+      ip_datacenter: false,
+      ip_pays_inhabituel: form.ip_pays_inhabituel,
+      ip_sur_liste_noire: false,
+    },
+    anonymization_detection: {
+      tor_detecte: false,
+      vpn_detecte: false,
+      proxy_detecte: false,
+    },
+    behavioral_biometrics_ueba: {
+      duree_session_min: 15,
+      nb_ecrans_session: 3,
+      delai_otp_s: 45,
+      nb_echecs_login_24h: 0,
+      vitesse_frappe: 50,
+      entropie_souris: 0.65,
+      nombre_requetes_par_minute: 4,
+    },
+    engineered_features_profiling: {
+      vitesse_24h: montant,
+      ratio_montant_median_30j: 1,
+      beneficiaire_nouveau: form.beneficiaire_nouveau,
+      distance_km_habitude: 5,
+      changement_appareil: form.changement_appareil,
+    },
+    relational_graph_features: {
+      degre_client: 3,
+      nb_voisins_frauduleux: 0,
+      score_reseau: 0.85,
+    },
+    security_integrity: {
+      signature_transaction_valide: true,
+      certificat_valide: true,
+      score_confiance_client_api: 0.92,
+    },
+  };
+}
+
+/**
  * Corps POST /api/v1/transactions/evaluate — métadonnées en français (validateur + persistance backend).
+ * Inclut `transaction_event` complet + `target_labels` pour éviter 422 « validation du corps » côté API stricte.
+ * Les coordonnées sont dans `metadata` uniquement (pas de champs racine en plus du schéma).
  */
 export function buildEvaluateTransactionBody(
   form: ClientFormLike,
@@ -179,19 +227,23 @@ export function buildEvaluateTransactionBody(
     source_environnement: 'app',
     latitude_debit: latD,
     longitude_debit: lonD,
-    latitude_credit: latC,
-    longitude_credit: lonC,
     ...(form.beneficiary_mode === 'banque' ? { flux_bancaire: form.bank_flow } : {}),
   };
+  if (latC != null && lonC != null && Number.isFinite(latC) && Number.isFinite(lonC)) {
+    metadata.latitude_credit = latC;
+    metadata.longitude_credit = lonC;
+  }
 
   const body: Record<string, unknown> = {
     transaction_event: {
       metadata,
+      ...buildFrenchTransactionEventBlocks(form, amount),
     },
-    latitude_debit: latD,
-    longitude_debit: lonD,
-    latitude_credit: latC,
-    longitude_credit: lonC,
+    target_labels: {
+      cible_fraude: false,
+      cible_session_anormale: false,
+      cible_comportement_atypique: false,
+    },
   };
 
   if (options.compteId) body.compte_id = options.compteId;
