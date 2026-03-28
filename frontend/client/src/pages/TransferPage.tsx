@@ -83,15 +83,6 @@ export function TransferPage() {
           Solde disponible :{' '}
           <span className="font-semibold tabular-nums text-rb-yellow">{accountBalance.toLocaleString('fr-FR')} FC</span>
         </p>
-        <p
-          className={`mt-2 rounded-lg border px-3 py-2 text-xs leading-relaxed ${
-            isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-100/90' : 'border-amber-200 bg-amber-50 text-amber-950'
-          }`}
-        >
-          <span className="font-semibold">Géolocalisation obligatoire</span> — au clic sur « Valider l’opération », votre
-          navigateur demandera l’autorisation de position (HTTPS). Sans position, la transaction ne peut pas être
-          enregistrée.
-        </p>
       </header>
 
       <div
@@ -450,6 +441,20 @@ export function TransferPage() {
                     ? 'Vérification requise'
                     : 'Refusé'}
               </p>
+              <div className="mt-4 w-full space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-700">
+                <p>
+                  <span className="text-slate-500">Risque fraude (M1)</span>{' '}
+                  <span className="font-semibold tabular-nums text-slate-900">
+                    {(transactionResult.score_m1 * 100).toFixed(2)}%
+                  </span>
+                  {transactionResult.m1_label ? (
+                    <span className="ml-2 text-xs text-slate-500">({transactionResult.m1_label})</span>
+                  ) : null}
+                </p>
+                {transactionResult.m1_fallback ? (
+                  <p className="text-xs text-amber-800">Modèle indisponible — score de secours.</p>
+                ) : null}
+              </div>
             </div>
             <button
               type="button"

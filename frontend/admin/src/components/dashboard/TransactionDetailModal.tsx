@@ -18,6 +18,15 @@ function formatScalar(v: unknown): string {
   return JSON.stringify(v);
 }
 
+/** Affiche un score modèle 0–1 ou 0–100 comme pourcentage entier. */
+function formatModelPercent(raw: unknown): string {
+  if (raw == null || raw === '') return '—';
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return '—';
+  const pct = n <= 1 ? n * 100 : n;
+  return `${Math.round(pct)}%`;
+}
+
 function formatUnknown(v: unknown): ReactNode {
   if (v === null || v === undefined) return '—';
   if (typeof v === 'object' && !Array.isArray(v)) {
@@ -209,6 +218,51 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
 
             {row && (
               <>
+                <SectionCard
+                  title="Modèles IA"
+                  subtitle="M1 = transaction (régression logistique). M2 session et M3 comportement : prochainement."
+                  icon={
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 0H3m18 0h-2m2 0h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                      />
+                    </svg>
+                  }
+                >
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm ring-1 ring-amber-900/5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-900/70">
+                        1 · Transaction (M1)
+                      </p>
+                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
+                        {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_transaction?: unknown }).score_modele_transaction : undefined)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">Risque frauduleux estimé (M1)</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        2 · Session (M2)
+                      </p>
+                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-400">
+                        {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_session?: unknown }).score_modele_session : undefined)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">À brancher</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        3 · Comportement (M3)
+                      </p>
+                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-400">
+                        {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_comportement?: unknown }).score_modele_comportement : undefined)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">À brancher</p>
+                    </div>
+                  </div>
+                </SectionCard>
+
                 <SectionCard
                   title="Transaction (table)"
                   subtitle="Champs scalaires issus de la base"

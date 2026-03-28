@@ -7,6 +7,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { buildM1TransactionFeatures, runM1PythonPredict } from './m1Features.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -74,7 +75,13 @@ const RELATIONS_WITH_SESSIONS = `
     banque_code,
     titulaire_compte,
     telephone,
-    operateur_mobile
+    operateur_mobile,
+    client_lie_id,
+    client_lie:clients!client_lie_id (
+      nom_complet,
+      reference_client,
+      telephone
+    )
   ),
   sessions:session_id (*),
   scores_evaluation (
@@ -94,7 +101,13 @@ const RELATIONS_WITHOUT_SESSIONS = `
     banque_code,
     titulaire_compte,
     telephone,
-    operateur_mobile
+    operateur_mobile,
+    client_lie_id,
+    client_lie:clients!client_lie_id (
+      nom_complet,
+      reference_client,
+      telephone
+    )
   ),
   scores_evaluation (
     decision,
@@ -116,8 +129,21 @@ function buildSelect(clientsFragment, relationsFragment) {
   return `*, ${cf}, ${rf}`.replace(/\s+/g, ' ').trim();
 }
 
-const BEN_SELECT_ENRICH =
-  'id, mode, compte_identifiant, banque_code, titulaire_compte, telephone, operateur_mobile';
+const BEN_SELECT_ENRICH = `
+  id,
+  mode,
+  compte_identifiant,
+  banque_code,
+  titulaire_compte,
+  telephone,
+  operateur_mobile,
+  client_lie_id,
+  client_lie:clients!client_lie_id (
+    nom_complet,
+    reference_client,
+    telephone
+  )
+`;
 
 /**
  * Recharge **toutes** les lignes `beneficiaires` par `beneficiaire_id` et fusionne dans la réponse.
@@ -182,8 +208,8 @@ function parseCoord(raw) {
 }
 
 /**
- * POST /api/v1/transactions/evaluate — scoring + persistance `transactions` (lat/lon débit obligatoires côté client).
- * Le client envoie `latitude_debit` / `longitude_debit` (position initiateur). Crédit réservé à un futur flux receveur.
+ * POST /api/v1/transactions/evaluate — scoring M1 (log_reg.joblib) + persistance `transactions`.
+ * Géoloc : si absente côté client, colonnes NULL en base ; le vecteur M1 utilise 0 pour les coords manquantes.
  */
 app.post('/api/v1/transactions/evaluate', async (req, res) => {
   const authDisabled = String(process.env.AUTH_DISABLED ?? 'true').toLowerCase() === 'true';
@@ -208,23 +234,17 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
 
     const latD = parseCoord(body.latitude_debit) ?? parseCoord(meta.latitude_debit);
     const lonD = parseCoord(body.longitude_debit) ?? parseCoord(meta.longitude_debit);
-    if (latD == null || lonD == null) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          message: 'latitude_debit et longitude_debit sont obligatoires',
-          code: 'GEO_REQUIRED',
-        },
-      });
-    }
-
-    const latDebit = latD;
-    const lonDebit = lonD;
-    if (latDebit < -90 || latDebit > 90 || lonDebit < -180 || lonDebit > 180) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'Coordonnées débit hors plage', code: 'INVALID_COORDS' },
-      });
+    let latDebit = null;
+    let lonDebit = null;
+    if (latD != null && lonD != null) {
+      if (latD < -90 || latD > 90 || lonD < -180 || lonD > 180) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Coordonnées débit hors plage', code: 'INVALID_COORDS' },
+        });
+      }
+      latDebit = latD;
+      lonDebit = lonD;
     }
 
     let latCredit = null;
@@ -232,14 +252,14 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
     const lc = parseCoord(body.latitude_credit) ?? parseCoord(meta.latitude_credit);
     const lcc = parseCoord(body.longitude_credit) ?? parseCoord(meta.longitude_credit);
     if (lc != null && lcc != null) {
-      latCredit = lc;
-      lonCredit = lcc;
-      if (latCredit < -90 || latCredit > 90 || lonCredit < -180 || lonCredit > 180) {
+      if (lc < -90 || lc > 90 || lcc < -180 || lcc > 180) {
         return res.status(400).json({
           success: false,
           error: { message: 'Coordonnées crédit hors plage', code: 'INVALID_COORDS' },
         });
       }
+      latCredit = lc;
+      lonCredit = lcc;
     }
 
     const refClient = String(meta.id_client ?? '')
@@ -254,7 +274,9 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
 
     const { data: clientRow, error: clientErr } = await supabase
       .from('clients')
-      .select('id')
+      .select(
+        'id, reference_client, nom_complet, email, telephone, ville, pays, adresse_physique, date_creation, date_mise_a_jour',
+      )
       .eq('reference_client', refClient)
       .maybeSingle();
 
@@ -374,20 +396,48 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
       });
     }
 
+    const txId = inserted?.id;
+    const m1Features = buildM1TransactionFeatures(body, meta, te, clientRow);
+    const m1Result = runM1PythonPredict(m1Features);
+    const m1Proba = m1Result.proba_fraude;
+    const decision =
+      m1Proba >= 0.5 ? 'challenge' : 'allow';
+
+    if (txId) {
+      const { error: scoreErr } = await supabase.from('scores_evaluation').upsert(
+        {
+          transaction_id: txId,
+          score_modele_transaction: m1Proba,
+          score_modele_session: null,
+          score_modele_comportement: null,
+          score_combine: m1Proba,
+          decision,
+          texte_motifs: m1Result.fallback ? 'M1: prédiction de secours (Python/modèle indisponible)' : null,
+        },
+        { onConflict: 'transaction_id' },
+      );
+      if (scoreErr) {
+        console.warn('[transactions/evaluate] scores_evaluation', scoreErr.message);
+      }
+    }
+
     return res.json({
       success: true,
       data: {
         scoring: {
-          score_m1_transaction: 0.12,
-          score_m2_session: 0.12,
-          score_m3_behavior: 0.12,
-          score_combined: 0.12,
-          decision: 'allow',
-          reason_codes: [],
+          score_m1_transaction: m1Proba,
+          score_m2_session: null,
+          score_m3_behavior: null,
+          score_combined: m1Proba,
+          decision,
+          reason_codes: m1Result.fallback ? ['m1_fallback'] : [],
+          m1_model: m1Result.model ?? null,
+          m1_fallback: m1Result.fallback,
+          m1_label: m1Result.label ?? null,
         },
         persistence: {
           status: 'persisted',
-          transaction_id: inserted?.id,
+          transaction_id: txId,
           numero_transaction: inserted?.numero_transaction ?? numero,
         },
       },

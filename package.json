@@ -2,11 +2,11 @@
   "name": "mokengeli-backend",
   "version": "0.1.0",
   "description": "API MOKENGELI — anti-fraude (Express, MVC)",
-  "main": "src/server.js",
+  "main": "backend/src/index.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test:smoke": "node scripts/smoke-test.js"
+    "start": "npm --prefix backend run start",
+    "dev": "npm --prefix backend run dev",
+    "test:smoke": "node backend/scripts/smoke-test.js"
   },
   "engines": {
     "node": ">=18"

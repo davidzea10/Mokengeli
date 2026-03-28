@@ -21,12 +21,16 @@ import { isValidPhoneRdcInput } from '../utils/phoneDigits';
 import { getRequiredGeolocation } from '../utils/geolocation';
 
 export interface TransactionResult {
+  /** Probabilité de fraude M1 (0–1), issue de log_reg.joblib. */
   score_m1: number;
-  score_m2: number;
-  score_m3: number;
+  score_m2: number | null;
+  score_m3: number | null;
   score_combined: number;
   decision: 'allow' | 'block' | 'challenge';
   decision_reason_codes: string[];
+  m1_fallback?: boolean;
+  m1_label?: string | null;
+  m1_model?: string | null;
 }
 
 export interface TransactionHistory {
@@ -312,13 +316,22 @@ export function ClientSessionProvider({ children }: { children: ReactNode }) {
             ? 'challenge'
             : 'allow';
 
+      const nOrNull = (v: unknown): number | null => {
+        if (v == null || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+
       const result: TransactionResult = {
-        score_m1: Math.round(Number(s.score_m1_transaction ?? 0) * 100) / 100,
-        score_m2: Math.round(Number(s.score_m2_session ?? 0) * 100) / 100,
-        score_m3: Math.round(Number(s.score_m3_behavior ?? 0) * 100) / 100,
-        score_combined: Math.round(Number(s.score_combined ?? 0) * 100) / 100,
+        score_m1: Math.round(Number(s.score_m1_transaction ?? 0) * 10000) / 10000,
+        score_m2: nOrNull(s.score_m2_session),
+        score_m3: nOrNull(s.score_m3_behavior),
+        score_combined: Math.round(Number(s.score_combined ?? 0) * 10000) / 10000,
         decision,
         decision_reason_codes: Array.isArray(s.reason_codes) ? s.reason_codes : [],
+        m1_fallback: typeof s.m1_fallback === 'boolean' ? s.m1_fallback : undefined,
+        m1_label: typeof s.m1_label === 'string' ? s.m1_label : null,
+        m1_model: typeof s.m1_model === 'string' ? s.m1_model : null,
       };
 
       setTransactionResult(result);

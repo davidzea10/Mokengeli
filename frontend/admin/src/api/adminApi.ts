@@ -59,6 +59,12 @@ export interface AdminTransactionRow {
         titulaire_compte?: string | null;
         telephone?: string | null;
         operateur_mobile?: string | null;
+        client_lie_id?: string | null;
+        client_lie?: {
+          nom_complet?: string | null;
+          reference_client?: string | null;
+          telephone?: string | null;
+        } | null;
         nom_complet?: string | null;
         numero_compte?: string | null;
         type_canal?: string | null;
@@ -72,6 +78,12 @@ export interface AdminTransactionRow {
         titulaire_compte?: string | null;
         telephone?: string | null;
         operateur_mobile?: string | null;
+        client_lie_id?: string | null;
+        client_lie?: {
+          nom_complet?: string | null;
+          reference_client?: string | null;
+          telephone?: string | null;
+        } | null;
         nom_complet?: string | null;
         numero_compte?: string | null;
         type_canal?: string | null;

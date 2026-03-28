@@ -228,6 +228,9 @@ export interface EvaluateTransactionApiData {
     score_combined?: number;
     decision?: string;
     reason_codes?: string[];
+    m1_model?: string | null;
+    m1_fallback?: boolean;
+    m1_label?: string | null;
     [key: string]: unknown;
   };
   features_preview?: string;

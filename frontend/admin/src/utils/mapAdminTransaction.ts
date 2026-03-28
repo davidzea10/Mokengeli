@@ -2,9 +2,14 @@ import type { Transaction, TransactionPartyDisplay } from '../types';
 import type { AdminTransactionRow } from '../api/adminApi';
 import { canalToMode } from './getTransactionParties';
 
+/** Aligné sur le backend M1 / persistance par défaut (affichage admin si colonnes NULL). */
+const RAWBANK_GOMBE_LAT = -4.3189;
+const RAWBANK_GOMBE_LON = 15.3004;
+
+/** Remplissage minimal pour l’UI admin (données réelles dans raw_payload / tables jointes si besoin). */
 const neutralEvent = {
   network_intelligence: {
-    score_reputation_ip: 0.5,
+    score_reputation_ip: 0,
     ip_datacenter: false,
     ip_pays_inhabituel: false,
     ip_sur_liste_noire: false,
@@ -16,16 +21,16 @@ const neutralEvent = {
   },
   behavioral_biometrics_ueba: {
     duree_session_min: 0,
-    nb_ecrans_session: 1,
+    nb_ecrans_session: 0,
     delai_otp_s: 0,
     nb_echecs_login_24h: 0,
-    vitesse_frappe: 50,
-    entropie_souris: 0.5,
+    vitesse_frappe: 0,
+    entropie_souris: 0,
     nombre_requetes_par_minute: 0,
   },
   engineered_features_profiling: {
     vitesse_24h: 0,
-    ratio_montant_median_30j: 1,
+    ratio_montant_median_30j: 0,
     beneficiaire_nouveau: false,
     distance_km_habitude: 0,
     changement_appareil: false,
@@ -33,12 +38,12 @@ const neutralEvent = {
   relational_graph_features: {
     degre_client: 0,
     nb_voisins_frauduleux: 0,
-    score_reseau: 0.5,
+    score_reseau: 0,
   },
   security_integrity: {
-    signature_transaction_valide: true,
-    certificat_valide: true,
-    score_confiance_client_api: 0.8,
+    signature_transaction_valide: false,
+    certificat_valide: false,
+    score_confiance_client_api: 0,
   },
 };
 
@@ -98,6 +103,27 @@ function asRecord(v: unknown): Record<string, unknown> | null {
   return null;
 }
 
+
+function getBeneficiaireClientLie(
+  one: NonNullable<AdminTransactionRow['beneficiaires']> extends (infer U)[]
+    ? U
+    : NonNullable<AdminTransactionRow['beneficiaires']>,
+): { nom_complet?: string | null; reference_client?: string | null; telephone?: string | null } | null {
+  if (!one || typeof one !== 'object') return null;
+  const cl = (
+    one as {
+      client_lie?: { nom_complet?: string | null; reference_client?: string | null; telephone?: string | null };
+    }
+  ).client_lie;
+  if (cl && typeof cl === 'object') return cl;
+  return null;
+}
+
+function looksLikePhoneDigits(s: string): boolean {
+  const d = s.replace(/[\s\-]/g, '');
+  return /^\+?[0-9]{8,}$/.test(d);
+}
+
 /**
  * `reference_beneficiaire` en base : souvent « Titulaire · Banque · compte » (cf. docs/req.md, colonne t.reference_beneficiaire).
  */
@@ -117,6 +143,17 @@ function parseReferenceBeneficiaireDisplay(ref: string): TransactionPartyDisplay
     };
   }
   if (parts.length === 2) {
+    const a = parts[0] ?? '';
+    const b = parts[1] ?? '';
+    const aPhone = looksLikePhoneDigits(a);
+    const bPhone = looksLikePhoneDigits(b);
+    // Mobile : « téléphone · titulaire » (ancien format) ou « titulaire · téléphone » (nouveau).
+    if (aPhone && !bPhone) {
+      return { nom: b || '—', compte_ou_numero: a, mode: 'mobile' };
+    }
+    if (bPhone && !aPhone) {
+      return { nom: a || '—', compte_ou_numero: b, mode: 'mobile' };
+    }
     return {
       nom: parts[0] || '—',
       compte_ou_numero: parts[1] || '—',
@@ -189,8 +226,13 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
       one.telephone ||
       one.titulaire_compte ||
       one.nom_complet ||
-      one.numero_compte)
+      one.numero_compte ||
+      (one as { client_lie_id?: string | null }).client_lie_id ||
+      getBeneficiaireClientLie(one))
   ) {
+    const clientLie = getBeneficiaireClientLie(one);
+    const nomFromClientLie =
+      clientLie?.nom_complet?.trim() || clientLie?.reference_client?.trim() || '';
     const modeRaw = String(one.mode ?? '').toLowerCase();
     const isMobile =
       modeRaw === 'mobile_money' ||
@@ -200,10 +242,15 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
       modeRaw === 'compte_bancaire' || modeRaw.includes('banque') || Boolean(one.compte_identifiant);
 
     if (isMobile || (Boolean(one.telephone) && !isBank)) {
-      const phone = (one.telephone ?? one.numero_compte ?? '').trim() || ref;
+      const phone =
+        (one.telephone ?? one.numero_compte ?? clientLie?.telephone ?? '').trim() ||
+        (looksLikePhoneDigits(ref) ? ref.trim() : '');
+      /** `??` seul laissait passer `""` et masquait `client_lie.nom_complet`. */
       const nom =
-        (one.titulaire_compte ?? one.nom_complet ?? '').trim() ||
-        (phone ? phone : '—');
+        (one.titulaire_compte?.trim() ||
+          one.nom_complet?.trim() ||
+          nomFromClientLie ||
+          '') || '—';
       return {
         nom,
         compte_ou_numero: phone || '—',
@@ -212,13 +259,18 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
     }
 
     if (isBank || one.compte_identifiant || one.banque_nom || one.banque_code) {
-      const nom = (one.titulaire_compte ?? one.nom_complet ?? '').trim() || '—';
+      const nom =
+        (one.titulaire_compte?.trim() ||
+          one.nom_complet?.trim() ||
+          nomFromClientLie ||
+          '') || '—';
       const compte =
         (one.compte_identifiant ?? one.numero_compte ?? '').trim() || ref || '—';
       return { nom, compte_ou_numero: compte, mode: 'banque' };
     }
 
-    const legNom = (one.nom_complet ?? '').trim();
+    const legNom =
+      (one.nom_complet ?? '').trim() || nomFromClientLie || '';
     const legCompte = (one.numero_compte ?? '').trim();
     const tc = (one.type_canal ?? '').toLowerCase();
     let mode: TransactionPartyDisplay['mode'] = '—';
@@ -241,10 +293,13 @@ function pickBeneficiary(row: AdminTransactionRow): TransactionPartyDisplay {
   if (fromRaw) return fromRaw;
 
   if (ref) {
+    if (looksLikePhoneDigits(ref)) {
+      return { nom: '—', compte_ou_numero: ref.trim(), mode: 'mobile' };
+    }
     return {
       nom: ref,
       compte_ou_numero: ref,
-      mode: /^\+?[0-9\s\-]{8,}$/.test(ref) ? 'mobile' : 'banque',
+      mode: 'banque',
     };
   }
 
@@ -318,10 +373,10 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
         jour_semaine: jourSemaine,
         type_transaction: typeTx,
         canal,
-        latitude_debit: row.latitude_debit ?? null,
-        longitude_debit: row.longitude_debit ?? null,
-        latitude_credit: row.latitude_credit ?? null,
-        longitude_credit: row.longitude_credit ?? null,
+        latitude_debit: row.latitude_debit ?? RAWBANK_GOMBE_LAT,
+        longitude_debit: row.longitude_debit ?? RAWBANK_GOMBE_LON,
+        latitude_credit: row.latitude_credit ?? RAWBANK_GOMBE_LAT,
+        longitude_credit: row.longitude_credit ?? RAWBANK_GOMBE_LON,
         parties: {
           expediteur: buildExpediteur(row, canal),
           destinataire: pickBeneficiary(row),

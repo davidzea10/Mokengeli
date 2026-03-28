@@ -3,9 +3,10 @@
  */
 async function runModels(featureVector) {
   return {
-    score_m1_transaction: 0.1,
-    score_m2_session: 0.05,
-    score_m3_behavior: 0.08,
+    // Valeurs neutres en attendant le branchement réel des modèles.
+    score_m1_transaction: 0,
+    score_m2_session: 0,
+    score_m3_behavior: 0,
     model_versions: {
       m1: 'stub-0.1.0',
       m2: 'stub-0.1.0',
