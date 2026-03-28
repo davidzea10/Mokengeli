@@ -174,6 +174,13 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+/** JSON peut envoyer des nombres en string ; PostgREST attend des nombres pour double precision. */
+function parseCoord(raw) {
+  if (raw == null || raw === '') return null;
+  const n = typeof raw === 'string' ? parseFloat(raw) : Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 /**
  * POST /api/v1/transactions/evaluate — scoring + persistance `transactions` (lat/lon débit obligatoires côté client).
  * Le client envoie `latitude_debit` / `longitude_debit` (position initiateur). Crédit réservé à un futur flux receveur.
@@ -199,14 +206,9 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
       });
     }
 
-    const latD = body.latitude_debit ?? meta.latitude_debit;
-    const lonD = body.longitude_debit ?? meta.longitude_debit;
-    if (
-      latD == null ||
-      lonD == null ||
-      !Number.isFinite(Number(latD)) ||
-      !Number.isFinite(Number(lonD))
-    ) {
+    const latD = parseCoord(body.latitude_debit) ?? parseCoord(meta.latitude_debit);
+    const lonD = parseCoord(body.longitude_debit) ?? parseCoord(meta.longitude_debit);
+    if (latD == null || lonD == null) {
       return res.status(400).json({
         success: false,
         error: {
@@ -216,8 +218,8 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
       });
     }
 
-    const latDebit = Number(latD);
-    const lonDebit = Number(lonD);
+    const latDebit = latD;
+    const lonDebit = lonD;
     if (latDebit < -90 || latDebit > 90 || lonDebit < -180 || lonDebit > 180) {
       return res.status(400).json({
         success: false,
@@ -227,11 +229,11 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
 
     let latCredit = null;
     let lonCredit = null;
-    const lc = body.latitude_credit ?? meta.latitude_credit;
-    const lcc = body.longitude_credit ?? meta.longitude_credit;
-    if (lc != null && lcc != null && Number.isFinite(Number(lc)) && Number.isFinite(Number(lcc))) {
-      latCredit = Number(lc);
-      lonCredit = Number(lcc);
+    const lc = parseCoord(body.latitude_credit) ?? parseCoord(meta.latitude_credit);
+    const lcc = parseCoord(body.longitude_credit) ?? parseCoord(meta.longitude_credit);
+    if (lc != null && lcc != null) {
+      latCredit = lc;
+      lonCredit = lcc;
       if (latCredit < -90 || latCredit > 90 || lonCredit < -180 || lonCredit > 180) {
         return res.status(400).json({
           success: false,
