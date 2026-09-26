@@ -16,6 +16,37 @@ function pct01(raw) {
   return Math.round((n <= 1 ? n * 100 : n) * 10) / 10;
 }
 
+function parseSocialFromMotifs(texteMotifs) {
+  const empty = {
+    phishing: null,
+    vishing: null,
+    phishing_niveau: null,
+    vishing_niveau: null,
+    phishing_reasons: [],
+    vishing_reasons: [],
+  };
+  if (texteMotifs == null) return empty;
+  let raw = texteMotifs;
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return empty;
+    }
+  }
+  if (!raw || typeof raw !== 'object') return empty;
+  const ph = raw.phishing && typeof raw.phishing === 'object' ? raw.phishing : null;
+  const vi = raw.vishing && typeof raw.vishing === 'object' ? raw.vishing : null;
+  return {
+    phishing: pct01(ph?.score),
+    vishing: pct01(vi?.score),
+    phishing_niveau: ph?.niveau ? String(ph.niveau) : null,
+    vishing_niveau: vi?.niveau ? String(vi.niveau) : null,
+    phishing_reasons: Array.isArray(ph?.reasons) ? ph.reasons.map(String) : [],
+    vishing_reasons: Array.isArray(vi?.reasons) ? vi.reasons.map(String) : [],
+  };
+}
+
 function hourBucket(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
@@ -37,6 +68,7 @@ export function buildLisungiContext({ client, comptes, transactions }) {
     const se = Array.isArray(t.scores_evaluation)
       ? t.scores_evaluation[0]
       : t.scores_evaluation;
+    const social = parseSocialFromMotifs(se?.texte_motifs);
     return {
       numero: t.numero_transaction,
       date: t.date_transaction,
@@ -50,6 +82,12 @@ export function buildLisungiContext({ client, comptes, transactions }) {
       score_m1: pct01(se?.score_modele_transaction),
       score_m2: pct01(se?.score_modele_session),
       score_m3: pct01(se?.score_modele_comportement),
+      score_phishing: social.phishing,
+      score_vishing: social.vishing,
+      phishing_niveau: social.phishing_niveau,
+      vishing_niveau: social.vishing_niveau,
+      phishing_reasons: social.phishing_reasons,
+      vishing_reasons: social.vishing_reasons,
     };
   });
 
@@ -94,6 +132,27 @@ export function buildLisungiContext({ client, comptes, transactions }) {
     ? riskScores.reduce((a, b) => a + b, 0) / riskScores.length
     : null;
 
+  const phScores = txs.map((t) => t.score_phishing).filter((x) => x != null);
+  const viScores = txs.map((t) => t.score_vishing).filter((x) => x != null);
+  const avgPhishing = phScores.length
+    ? phScores.reduce((a, b) => a + b, 0) / phScores.length
+    : null;
+  const avgVishing = viScores.length
+    ? viScores.reduce((a, b) => a + b, 0) / viScores.length
+    : null;
+  const highPhishing = txs.filter(
+    (t) => t.phishing_niveau === 'eleve' || (t.score_phishing != null && t.score_phishing >= 70),
+  ).length;
+  const highVishing = txs.filter(
+    (t) => t.vishing_niveau === 'eleve' || (t.score_vishing != null && t.score_vishing >= 70),
+  ).length;
+  const midPhishing = txs.filter(
+    (t) => t.phishing_niveau === 'moyen' || (t.score_phishing != null && t.score_phishing >= 40 && t.score_phishing < 70),
+  ).length;
+  const midVishing = txs.filter(
+    (t) => t.vishing_niveau === 'moyen' || (t.score_vishing != null && t.score_vishing >= 40 && t.score_vishing < 70),
+  ).length;
+
   return {
     client: {
       reference: client?.reference_client,
@@ -110,6 +169,12 @@ export function buildLisungiContext({ client, comptes, transactions }) {
       montant_max: max,
       ops_nuit: nightOps,
       avg_risk_pct: avgRisk != null ? Math.round(avgRisk * 10) / 10 : null,
+      avg_phishing_pct: avgPhishing != null ? Math.round(avgPhishing * 10) / 10 : null,
+      avg_vishing_pct: avgVishing != null ? Math.round(avgVishing * 10) / 10 : null,
+      high_phishing: highPhishing,
+      high_vishing: highVishing,
+      mid_phishing: midPhishing,
+      mid_vishing: midVishing,
       decisions,
       canaux: Object.fromEntries(byCanal),
     },
@@ -173,6 +238,53 @@ export function analyzeContextHeuristic(ctx, question) {
       conseils.push('Limitez les virements nocturnes sauf nécessité ; ils attirent davantage la surveillance.');
     }
 
+    if (s.avg_phishing_pct != null || s.avg_vishing_pct != null) {
+      const parts = [];
+      if (s.avg_phishing_pct != null) parts.push(`phishing moyen ${s.avg_phishing_pct} %`);
+      if (s.avg_vishing_pct != null) parts.push(`vishing moyen ${s.avg_vishing_pct} %`);
+      remarques.push(
+        `Couche ingénierie sociale (seuils 40 % OTP / 70 % blocage) : ${parts.join(', ')}.`,
+      );
+    }
+
+    if (s.high_phishing > 0 || s.mid_phishing > 0) {
+      if (s.high_phishing > 0) {
+        remarques.push(
+          `${s.high_phishing} opération(s) avec score phishing élevé (≥ 70 %) — risque de lien ou session compromise.`,
+        );
+        conseils.push(
+          'Ne cliquez jamais sur un lien reçu par SMS/WhatsApp pour « valider un virement » : ouvrez toujours l’app Mokengeli vous-même.',
+        );
+        recommandations.push(
+          'Si un message vous presse de payer un « agent » ou un « support », raccrochez et composez le numéro officiel de votre banque.',
+        );
+      } else {
+        remarques.push(`${s.mid_phishing} opération(s) en zone phishing moyenne (40–69 %).`);
+        conseils.push(
+          'Vérifiez l’URL et l’appareil avant de saisir un OTP : un VPN, proxy ou IP inhabituelle augmente le score phishing.',
+        );
+      }
+    }
+
+    if (s.high_vishing > 0 || s.mid_vishing > 0) {
+      if (s.high_vishing > 0) {
+        remarques.push(
+          `${s.high_vishing} opération(s) avec score vishing élevé — schéma typique d’appel frauduleux.`,
+        );
+        conseils.push(
+          'Personne de légitime ne vous demandera jamais votre code OTP au téléphone : raccrochez immédiatement.',
+        );
+        recommandations.push(
+          'En cas d’appel urgent (« votre compte va être bloqué »), composez vous-même le numéro figurant au dos de votre carte.',
+        );
+      } else {
+        remarques.push(`${s.mid_vishing} opération(s) en zone vishing moyenne (délai OTP / échecs login).`);
+        conseils.push(
+          'Prenez le temps de saisir l’OTP vous-même ; un délai anormalement court après un appel peut signaler une pression vishing.',
+        );
+      }
+    }
+
     if (s.montant_max > s.montant_moyen * 3 && s.montant_moyen > 0) {
       remarques.push(
         `Écart important entre montant max (${money(s.montant_max)}) et moyenne (${money(s.montant_moyen)}).`,
@@ -217,6 +329,24 @@ export function analyzeContextHeuristic(ctx, question) {
   if (q.includes('sécur') || q.includes('fraude') || q.includes('risque')) {
     recommandations.push(
       'Activez toujours l’OTP, ne partagez jamais vos codes, et vérifiez le destinataire avant chaque envoi.',
+    );
+  }
+
+  if (q.includes('phish') || q.includes('lien') || q.includes('sms') || q.includes('whatsapp')) {
+    conseils.push(
+      'Ignorez les liens « cliquez ici pour confirmer » : saisissez toujours l’adresse de l’app ou du site officiels à la main.',
+    );
+    recommandations.push(
+      'Signalez tout SMS ou e-mail suspect à votre banque ; ne transférez jamais vers un « numéro de récupération ».',
+    );
+  }
+
+  if (q.includes('vish') || q.includes('appel') || q.includes('téléphone') || q.includes('telephone')) {
+    conseils.push(
+      'Les fraudeurs vishing se font passer pour la banque : ils créent l’urgence pour obtenir votre OTP.',
+    );
+    recommandations.push(
+      'Raccrochez, attendez quelques minutes, puis rappelez le numéro officiel — ne rappelez pas un numéro fourni par l’appelant.',
     );
   }
 

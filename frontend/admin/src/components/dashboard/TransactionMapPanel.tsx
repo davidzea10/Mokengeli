@@ -216,6 +216,17 @@ export function TransactionMapPanel({ transactions }: TransactionMapPanelProps) 
                           <div className="rounded-lg bg-red-100/80 px-2 py-1 text-[11px] text-red-900">
                             Bloquée (score ≥ 70 %) — M1 {tx._api?.scoreTransaction ?? '—'} % · M2{' '}
                             {tx._api?.scoreSession ?? '—'} % · M3 {tx._api?.scoreComportement ?? '—'} %
+                            {(tx._api?.scorePhishing != null || tx._api?.scoreVishing != null) && (
+                              <>
+                                {' '}
+                                · Ph {tx._api?.scorePhishing ?? '—'} % · Vi {tx._api?.scoreVishing ?? '—'} %
+                              </>
+                            )}
+                          </div>
+                        )}
+                        {!fraud && decision !== 'block' && (tx._api?.scorePhishing != null || tx._api?.scoreVishing != null) && (
+                          <div className="text-[11px] text-neutral-500">
+                            Phishing {tx._api?.scorePhishing ?? '—'} % · Vishing {tx._api?.scoreVishing ?? '—'} %
                           </div>
                         )}
                         <div className="text-[11px] text-neutral-500">{formatDate(m.date_transaction)}</div>

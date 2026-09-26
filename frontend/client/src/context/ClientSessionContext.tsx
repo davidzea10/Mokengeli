@@ -19,6 +19,7 @@ import type { BankFlow } from '../api/buildTransactionPayload';
 import { buildBeneficiarySummary } from '../api/buildTransactionPayload';
 import { isValidPhoneRdcInput } from '../utils/phoneDigits';
 import { getRequiredGeolocation } from '../utils/geolocation';
+import { detectBrowserAnonymization } from '../utils/detectAnonymization';
 
 export interface TransactionResult {
   /** Probabilité de fraude M1 (0–1), issue de log_reg.joblib. */
@@ -51,6 +52,10 @@ interface ClientFormState {
   beneficiaire_nouveau: boolean;
   changement_appareil: boolean;
   ip_pays_inhabituel: boolean;
+  tor_detecte: boolean;
+  vpn_detecte: boolean;
+  proxy_detecte: boolean;
+  ip_datacenter: boolean;
   beneficiary_mode: 'banque' | 'mobile_money';
   /** Sous-flux : interne Mokengeli, autre banque RDC, ou mobile money. */
   bank_flow: BankFlow;
@@ -69,6 +74,10 @@ const initialForm = (): ClientFormState => ({
   beneficiaire_nouveau: false,
   changement_appareil: false,
   ip_pays_inhabituel: false,
+  tor_detecte: false,
+  vpn_detecte: false,
+  proxy_detecte: false,
+  ip_datacenter: false,
   beneficiary_mode: 'banque',
   bank_flow: 'interne',
   ben_compte_identifiant: '',
@@ -278,9 +287,18 @@ export function ClientSessionProvider({ children }: { children: ReactNode }) {
       const principal =
         meContext.comptes.find((c) => c.est_compte_principal) ?? meContext.comptes[0];
 
+      const anon = await detectBrowserAnonymization();
+      const formWithAnon = {
+        ...formData,
+        tor_detecte: anon.tor_detecte || formData.tor_detecte,
+        vpn_detecte: anon.vpn_detecte || formData.vpn_detecte,
+        proxy_detecte: anon.proxy_detecte || formData.proxy_detecte,
+        ip_datacenter: anon.ip_datacenter || formData.ip_datacenter,
+      };
+
       const evalRes = await evaluateTransactionWithApi({
         referenceClient: selectedProfile,
-        form: formData,
+        form: formWithAnon,
         transactionNumber: txNum,
         compteId: principal?.compte_id ?? null,
         beneficiaireId: beneficiaireId ?? null,

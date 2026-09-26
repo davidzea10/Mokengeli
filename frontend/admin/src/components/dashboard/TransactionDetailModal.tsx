@@ -6,6 +6,11 @@ import {
   decisionLabelFr,
 } from '../../utils/decisionPolicy';
 import { getTransactionRiskPercent } from '../../utils/transactionRiskScore';
+import {
+  parseSocialLayersFromMotifs,
+  socialBadgeClasses,
+  socialNiveauLabel,
+} from '../../utils/socialEngineering';
 
 function humanizeKey(key: string): string {
   return key
@@ -203,6 +208,18 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
       return parts.reduce((a, b) => a + b, 0) / parts.length;
     })();
 
+  const social = parseSocialLayersFromMotifs(
+    (scores as { texte_motifs?: unknown } | undefined)?.texte_motifs,
+  );
+  const scorePhishing =
+    social.phishing.scorePercent ?? transaction._api?.scorePhishing ?? null;
+  const scoreVishing =
+    social.vishing.scorePercent ?? transaction._api?.scoreVishing ?? null;
+  const phishingNiveau =
+    social.phishing.niveau ?? transaction._api?.phishingNiveau ?? null;
+  const vishingNiveau =
+    social.vishing.niveau ?? transaction._api?.vishingNiveau ?? null;
+
   const decision =
     transaction._api?.decision ?? decisionFromCombinedScore(scoreCombined);
   const decisionDisplay = decisionLabelFr(decision);
@@ -254,6 +271,12 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
                 <span className="text-[10px] text-slate-500">
                   Combiné {formatModelPercent(scoreCombined)} · M1 {formatModelPercent(scoreM1)} · M2{' '}
                   {formatModelPercent(scoreM2)} · M3 {formatModelPercent(scoreM3)}
+                  {(scorePhishing != null || scoreVishing != null) && (
+                    <>
+                      {' '}
+                      · Ph {formatModelPercent(scorePhishing)} · Vi {formatModelPercent(scoreVishing)}
+                    </>
+                  )}
                 </span>
               </div>
             </div>
@@ -298,7 +321,7 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
 
             <SectionCard
               title="Modèles IA"
-              subtitle="Score combiné puis M1 · M2 · M3 — échelle 0–100 %."
+              subtitle="Score combiné, M1–M3 et couche phishing / vishing — 0–100 % (seuils 40 / 70)."
               icon={
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
@@ -324,7 +347,7 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
                     {formatModelPercent(scoreCombined)}
                   </p>
                   <p className="mt-1 text-xs text-slate-600">
-                    Synthèse M1 + M2 + M3
+                    Synthèse M1 + M2 + M3 (+ max social)
                     {decision ? ` · ${decisionDisplay}` : ''}
                   </p>
                 </div>
@@ -371,6 +394,63 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
                       {formatModelPercent(scoreM3)}
                     </p>
                     <p className="mt-1 text-xs text-slate-600">Comportement atypique</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-violet-200/90 bg-gradient-to-br from-violet-50 to-white p-4 shadow-sm ring-1 ring-violet-900/5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-900/70">
+                        Phishing
+                      </p>
+                      <span
+                        className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${socialBadgeClasses(phishingNiveau)}`}
+                      >
+                        {socialNiveauLabel(phishingNiveau)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
+                      {formatModelPercent(scorePhishing)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Liens / IP / anonymisation · 0–39 faible · 40–69 moyen · ≥70 élevé
+                    </p>
+                    {social.phishing.reasons.length > 0 && (
+                      <ul className="mt-2 space-y-0.5 text-[11px] text-slate-600">
+                        {social.phishing.reasons.slice(0, 4).map((r) => (
+                          <li key={r} className="truncate font-mono">
+                            · {r}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-rose-200/90 bg-gradient-to-br from-rose-50 to-white p-4 shadow-sm ring-1 ring-rose-900/5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-900/70">
+                        Vishing
+                      </p>
+                      <span
+                        className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${socialBadgeClasses(vishingNiveau)}`}
+                      >
+                        {socialNiveauLabel(vishingNiveau)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
+                      {formatModelPercent(scoreVishing)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Pression téléphonique / OTP / urgence · mêmes seuils 40 / 70
+                    </p>
+                    {social.vishing.reasons.length > 0 && (
+                      <ul className="mt-2 space-y-0.5 text-[11px] text-slate-600">
+                        {social.vishing.reasons.slice(0, 4).map((r) => (
+                          <li key={r} className="truncate font-mono">
+                            · {r}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
               </div>

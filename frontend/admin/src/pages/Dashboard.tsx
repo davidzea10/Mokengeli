@@ -388,10 +388,22 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
 
   const modelScoreAverages = useMemo(() => {
     if (apiLoadState !== 'ok') {
-      return { scoreTransaction: null, scoreSession: null, scoreComportement: null };
+      return {
+        scoreTransaction: null,
+        scoreSession: null,
+        scoreComportement: null,
+        scorePhishing: null,
+        scoreVishing: null,
+      };
     }
     if (remoteTransactions.length === 0) {
-      return { scoreTransaction: null, scoreSession: null, scoreComportement: null };
+      return {
+        scoreTransaction: null,
+        scoreSession: null,
+        scoreComportement: null,
+        scorePhishing: null,
+        scoreVishing: null,
+      };
     }
     const txs = remoteTransactions;
     const avg = (sel: (t: Transaction) => number | null | undefined) => {
@@ -403,6 +415,8 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
       scoreTransaction: avg((t) => t._api?.scoreTransaction ?? null),
       scoreSession: avg((t) => t._api?.scoreSession ?? null),
       scoreComportement: avg((t) => t._api?.scoreComportement ?? null),
+      scorePhishing: avg((t) => t._api?.scorePhishing ?? null),
+      scoreVishing: avg((t) => t._api?.scoreVishing ?? null),
     };
   }, [apiLoadState, remoteTransactions]);
 
@@ -553,6 +567,8 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
                 scoreTransaction={modelScoreAverages.scoreTransaction}
                 scoreSession={modelScoreAverages.scoreSession}
                 scoreComportement={modelScoreAverages.scoreComportement}
+                scorePhishing={modelScoreAverages.scorePhishing}
+                scoreVishing={modelScoreAverages.scoreVishing}
               />
 
               <TransactionTable

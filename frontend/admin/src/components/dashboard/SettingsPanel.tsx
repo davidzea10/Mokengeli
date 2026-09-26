@@ -28,6 +28,24 @@ const models = [
     desc: 'Biométrie comportementale (UEBA)',
     color: 'from-emerald-500 to-emerald-600',
   },
+  {
+    id: 'ph',
+    name: 'Phishing',
+    code: 'Ph',
+    version: 'heuristique-0.1',
+    updated: '26/09/2026',
+    desc: 'Ingénierie sociale via liens / IP / anonymisation',
+    color: 'from-violet-600 to-indigo-700',
+  },
+  {
+    id: 'vi',
+    name: 'Vishing',
+    code: 'Vi',
+    version: 'heuristique-0.1',
+    updated: '26/09/2026',
+    desc: 'Pression téléphonique, OTP et urgence',
+    color: 'from-rose-500 to-rose-700',
+  },
 ] as const;
 
 function PolicySlider({
@@ -137,15 +155,15 @@ export function SettingsPanel() {
         <div className="space-y-4 p-4 sm:p-6">
           <PolicySlider
             label="Seuil de blocage automatique"
-            description="Au-delà de ce score combiné (moyenne M1/M2/M3), la transaction est bloquée."
-            hint="Politique active : 70–100 % → bloquée."
+            description="Au-delà de ce score combiné (M1/M2/M3 + max phishing/vishing), la transaction est bloquée."
+            hint="Politique active : 70–100 % → bloquée (même échelle pour phishing / vishing)."
             value={blockThreshold}
             onChange={setBlockThreshold}
           />
           <PolicySlider
             label="Seuil OTP (vérification)"
             description="Entre ce score et le seuil de blocage, un OTP est envoyé au numéro du client pour confirmer."
-            hint="Politique active : 40–69 % → OTP · 0–39 % → autorisée."
+            hint="Politique active : 40–69 % → OTP · 0–39 % → autorisée (aligné phishing / vishing)."
             value={verifyThreshold}
             onChange={setVerifyThreshold}
           />
@@ -192,8 +210,10 @@ export function SettingsPanel() {
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-semibold text-mk-ink">Modèles ML</h3>
-              <p className="text-sm text-neutral-500">Pipeline de scoring — production</p>
+              <h3 className="text-base font-semibold text-mk-ink">Modèles ML & couches sociales</h3>
+              <p className="text-sm text-neutral-500">
+                M1–M3 + phishing / vishing — seuils alignés 40 % OTP / 70 % blocage
+              </p>
             </div>
           </div>
         </div>

@@ -11,6 +11,11 @@ export interface ClientFormLike {
   beneficiaire_nouveau: boolean;
   changement_appareil: boolean;
   ip_pays_inhabituel: boolean;
+  /** Signaux anonymisation (détectés ou manuels). */
+  tor_detecte?: boolean;
+  vpn_detecte?: boolean;
+  proxy_detecte?: boolean;
+  ip_datacenter?: boolean;
   /** Bénéficiaire : compte bancaire (avec sous-flux) ou mobile money */
   beneficiary_mode: 'banque' | 'mobile_money';
   /** Uniquement si beneficiary_mode === 'banque' */
@@ -83,16 +88,16 @@ export function buildTransactionFromClientForm(
               beneficiary_account_holder: form.ben_titulaire.trim() || undefined,
             }),
       },
+      anonymization_detection: {
+        tor_detected: Boolean(form.tor_detecte),
+        vpn_detected: Boolean(form.vpn_detecte),
+        proxy_detected: Boolean(form.proxy_detecte),
+      },
       network_intelligence: {
         ip_reputation_score: 0.85,
-        ip_datacenter: false,
+        ip_datacenter: Boolean(form.ip_datacenter),
         unusual_country_ip: form.ip_pays_inhabituel,
         ip_blacklisted: false,
-      },
-      anonymization_detection: {
-        tor_detected: false,
-        vpn_detected: false,
-        proxy_detected: false,
       },
       behavioral_biometrics_ueba: {
         session_duration_min: 15,
@@ -150,14 +155,14 @@ function buildFrenchTransactionEventBlocks(form: ClientFormLike) {
   return {
     network_intelligence: {
       score_reputation_ip: 0,
-      ip_datacenter: false,
+      ip_datacenter: Boolean(form.ip_datacenter),
       ip_pays_inhabituel: form.ip_pays_inhabituel,
       ip_sur_liste_noire: false,
     },
     anonymization_detection: {
-      tor_detecte: false,
-      vpn_detecte: false,
-      proxy_detecte: false,
+      tor_detecte: Boolean(form.tor_detecte),
+      vpn_detecte: Boolean(form.vpn_detecte),
+      proxy_detecte: Boolean(form.proxy_detecte),
     },
     behavioral_biometrics_ueba: {
       duree_session_min: 0,

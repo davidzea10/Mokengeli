@@ -10,7 +10,12 @@ import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
 import { buildM1TransactionFeatures, runM1PythonPredict } from './m1Features.js';
 import { scoreM2Session, scoreM3Behavior, combineScores } from './m2m3Scores.js';
+import { applyPhishingVishingLayer, buildSocialMotifsPayload } from './phishingVishingScores.js';
 import { runLisungiAdvice } from './lisungiAdvice.js';
+import {
+  resolveAnonymizationSignals,
+  applyAnonymizationToFeatures,
+} from './networkAnonymization.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -92,7 +97,8 @@ const RELATIONS_WITH_SESSIONS = `
     score_combine,
     score_modele_transaction,
     score_modele_session,
-    score_modele_comportement
+    score_modele_comportement,
+    texte_motifs
   )`;
 
 /** Même chose sans sessions — préféré dès qu’une jointure session échoue. */
@@ -117,7 +123,8 @@ const RELATIONS_WITHOUT_SESSIONS = `
     score_combine,
     score_modele_transaction,
     score_modele_session,
-    score_modele_comportement
+    score_modele_comportement,
+    texte_motifs
   )`;
 
 /**
@@ -769,7 +776,7 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
 
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const te = body.transaction_event;
+    let te = body.transaction_event;
     const meta = te?.metadata;
     if (!meta || typeof meta !== 'object') {
       return res.status(400).json({
@@ -921,18 +928,30 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
       source_environnement: sourceEnv,
     };
 
-    // Scoring M1 (joblib) + M2/M3 (heuristiques session / comportement)
-    const m1Features = buildM1TransactionFeatures(body, meta, te, clientRow);
+    // Scoring M1 (joblib) + M2/M3 + couche phishing / vishing
+    let m1Features = buildM1TransactionFeatures(body, meta, te, clientRow);
+    const anonSignals = await resolveAnonymizationSignals(req, te || {}, m1Features);
+    const anonApplied = applyAnonymizationToFeatures(m1Features, te || {}, anonSignals);
+    m1Features = anonApplied.features;
+    te = anonApplied.te;
     const m1Result = runM1PythonPredict(m1Features);
     const m1Proba = m1Result.proba_fraude;
     const m2 = scoreM2Session(m1Features);
     const m3 = scoreM3Behavior(m1Features);
-    const combined = combineScores(m1Proba, m2, m3);
+    const baseCombined = combineScores(m1Proba, m2, m3);
+    const combined = applyPhishingVishingLayer(baseCombined, m1Features, te || {});
     const decision = combined.decision;
     const reasonCodes = [
       ...combined.reason_codes,
       ...(m1Result.fallback ? ['m1_fallback'] : []),
+      ...(anonSignals.tor ? ['net:tor_exit'] : []),
+      ...(anonSignals.vpn ? ['net:vpn_or_proxy'] : []),
     ];
+    const motifsPayload = buildSocialMotifsPayload(
+      combined.phishing,
+      combined.vishing,
+      reasonCodes,
+    );
 
     let creditCompteId = null;
     if (body.beneficiaire_id) {
@@ -1009,12 +1028,27 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
           score_modele_comportement: m3.score,
           score_combine: combined.score_combined,
           decision,
-          texte_motifs: reasonCodes.length ? JSON.stringify(reasonCodes) : null,
+          texte_motifs: JSON.stringify(motifsPayload),
         },
         { onConflict: 'transaction_id' },
       );
       if (scoreErr) {
         console.warn('[transactions/evaluate] scores_evaluation', scoreErr.message);
+      }
+
+      // Alerte admin pour challenge / block
+      if (decision === 'challenge' || decision === 'block' || decision === 'deny') {
+        await insertAdminAlert({
+          transactionId: txId,
+          numero: inserted?.numero_transaction ?? numero,
+          decision,
+          scoreCombined: combined.score_combined,
+          reasonCodes,
+          phishing: combined.phishing,
+          vishing: combined.vishing,
+          montant,
+          devise,
+        });
       }
     }
 
@@ -1103,6 +1137,18 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
           m1_label: m1Result.label ?? null,
           m2_model: m2.model,
           m3_model: m3.model,
+          phishing: {
+            score: combined.phishing.score,
+            niveau: combined.phishing.niveau,
+            reasons: combined.phishing.reasons,
+            model: combined.phishing.model,
+          },
+          vishing: {
+            score: combined.vishing.score,
+            niveau: combined.vishing.niveau,
+            reasons: combined.vishing.reasons,
+            model: combined.vishing.model,
+          },
         },
         persistence: {
           status: 'persisted',
@@ -1482,9 +1528,133 @@ function mapAlertRow(row) {
   };
 }
 
+function scoreToAlertItem(s) {
+  const tx = s.transactions || {};
+  const decision = String(s.decision || '').toLowerCase();
+  const scoreRaw = s.score_combine ?? s.score_modele_transaction;
+  const scorePct =
+    scoreRaw != null && Number.isFinite(Number(scoreRaw))
+      ? Math.round((Number(scoreRaw) <= 1 ? Number(scoreRaw) * 100 : Number(scoreRaw)))
+      : null;
+  const isBlock = decision === 'block' || decision === 'deny';
+  const numero = tx.numero_transaction || s.transaction_id;
+  const montant =
+    tx.montant != null
+      ? `${Number(tx.montant).toLocaleString('fr-FR')} ${tx.devise || 'FC'}`
+      : null;
+  let motifsHint = '';
+  try {
+    const raw = s.texte_motifs;
+    const o = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const codes = Array.isArray(o?.reason_codes) ? o.reason_codes : [];
+    const ph = o?.phishing?.niveau;
+    const vi = o?.vishing?.niveau;
+    const bits = [];
+    if (ph && ph !== 'faible') bits.push(`phishing ${ph}`);
+    if (vi && vi !== 'faible') bits.push(`vishing ${vi}`);
+    if (codes.some((c) => String(c).includes('tor'))) bits.push('Tor');
+    if (codes.some((c) => String(c).includes('vpn'))) bits.push('VPN');
+    motifsHint = bits.length ? ` · ${bits.join(', ')}` : '';
+  } catch {
+    /* ignore */
+  }
+  return {
+    id: `score-${s.transaction_id}`,
+    severity: isBlock ? 'critical' : 'warning',
+    title: isBlock
+      ? `Transaction bloquée${numero ? ` · ${numero}` : ''}`
+      : `OTP requis${numero ? ` · ${numero}` : ''}`,
+    description: [
+      scorePct != null ? `Score combiné ${scorePct} %` : null,
+      montant ? `Montant ${montant}` : null,
+      motifsHint ? motifsHint.replace(/^ · /, '') : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    time: formatRelativeTime(tx.date_transaction || s.date_calcul),
+    transactionId: numero != null ? String(numero) : String(s.transaction_id),
+  };
+}
+
+/**
+ * Tentative d’insertion dans `public.alerts` (schéma souple).
+ * Échec silencieux — l’UI lit aussi scores_evaluation.
+ */
+async function insertAdminAlert({
+  transactionId,
+  numero,
+  decision,
+  scoreCombined,
+  reasonCodes,
+  phishing,
+  vishing,
+  montant,
+  devise,
+}) {
+  const isBlock = decision === 'block' || decision === 'deny';
+  const scorePct = Math.round(
+    (Number(scoreCombined) <= 1 ? Number(scoreCombined) * 100 : Number(scoreCombined)) || 0,
+  );
+  const socialBits = [];
+  if (phishing?.niveau && phishing.niveau !== 'faible') {
+    socialBits.push(`phishing ${phishing.niveau} (${Math.round((phishing.score || 0) * 100)} %)`);
+  }
+  if (vishing?.niveau && vishing.niveau !== 'faible') {
+    socialBits.push(`vishing ${vishing.niveau} (${Math.round((vishing.score || 0) * 100)} %)`);
+  }
+  const codes = (reasonCodes || []).slice(0, 8).join(', ');
+  const title = isBlock
+    ? `Transaction bloquée · ${numero || transactionId}`
+    : `OTP requis · ${numero || transactionId}`;
+  const description = [
+    `Score combiné ${scorePct} %`,
+    montant != null ? `Montant ${Number(montant).toLocaleString('fr-FR')} ${devise || 'FC'}` : null,
+    socialBits.length ? socialBits.join(' · ') : null,
+    codes ? `Motifs : ${codes}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const payloads = [
+    {
+      transaction_id: transactionId,
+      numero_transaction: numero,
+      title,
+      description,
+      severity: isBlock ? 'critical' : 'warning',
+      status: 'pending',
+      decision,
+      score: scoreCombined,
+    },
+    {
+      transaction_id: transactionId,
+      titre: title,
+      message: description,
+      niveau: isBlock ? 'critique' : 'moyen',
+      statut: 'pending',
+      decision,
+    },
+  ];
+
+  for (const row of payloads) {
+    const { error } = await supabase.from('alerts').insert(row);
+    if (!error) return true;
+    const msg = String(error.message || '').toLowerCase();
+    if (msg.includes('does not exist') || msg.includes('schema cache')) {
+      alertsTableMissing = true;
+      return false;
+    }
+    // colonne inconnue → essayer le payload suivant
+    if (msg.includes('column') || msg.includes('schema')) continue;
+    console.warn('[transactions/evaluate] alerts insert', error.message);
+    return false;
+  }
+  return false;
+}
+
 /**
  * Liste d’alertes : table `public.alerts` si elle existe,
- * sinon dérivée des transactions à décision challenge / deny / block.
+ * fusionnée avec les décisions challenge / deny / block de scores_evaluation.
  */
 let alertsTableMissing = false;
 app.get('/api/v1/admin/alerts', async (_req, res) => {
@@ -1494,84 +1664,65 @@ app.get('/api/v1/admin/alerts', async (_req, res) => {
     stats: { pending: 0, confirmedFraud: 0, falsePositives: 0 },
   };
 
+  const items = [];
+  const seenTx = new Set();
+
   if (!alertsTableMissing) {
-    const { data, error, count } = await supabase
+    const { data, error } = await supabase
       .from('alerts')
-      .select('*', { count: 'exact' })
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(100);
     if (!error) {
-      const rows = data ?? [];
-      const total = count ?? rows.length;
-      const items = rows.map(mapAlertRow);
-      let pending = 0;
-      let confirmedFraud = 0;
-      let falsePositives = 0;
-      const hasStatus = rows.some((r) => r.status != null || r.statut != null || r.type != null);
-      if (rows.length > 0 && hasStatus) {
-        for (const r of rows) {
-          const s = String(r.status ?? r.statut ?? r.type ?? '').toLowerCase();
-          if (
-            (s.includes('confirm') && s.includes('fraud')) ||
-            s.includes('fraude_confirm') ||
-            s === 'confirmed_fraud'
-          ) {
-            confirmedFraud++;
-          } else if (s.includes('false') || s.includes('faux') || s === 'false_positive') {
-            falsePositives++;
-          } else {
-            pending++;
-          }
-        }
-      } else {
-        pending = total;
+      for (const row of data ?? []) {
+        const mapped = mapAlertRow(row);
+        items.push(mapped);
+        if (mapped.transactionId) seenTx.add(String(mapped.transactionId));
+        if (row.transaction_id) seenTx.add(String(row.transaction_id));
       }
-      return res.json({
-        success: true,
-        data: { items, total, stats: { pending, confirmedFraud, falsePositives } },
-      });
+    } else {
+      alertsTableMissing = true;
+      console.warn('[admin/alerts] table absente — fallback scores_evaluation');
     }
-    alertsTableMissing = true;
-    console.warn('[admin/alerts] table absente — fallback scores_evaluation (challenge)');
   }
 
-  // Fallback : transactions scorées challenge / deny / block
+  // Toujours enrichir depuis scores_evaluation (challenge / block / deny)
   const { data: scores, error: sErr } = await supabase
     .from('scores_evaluation')
     .select(
-      'transaction_id, decision, score_combine, score_modele_transaction, date_calcul, transactions(id, numero_transaction, montant, devise, date_transaction, reference_beneficiaire, client_id)',
+      'transaction_id, decision, score_combine, score_modele_transaction, date_calcul, texte_motifs, transactions(id, numero_transaction, montant, devise, date_transaction, reference_beneficiaire, client_id)',
     )
     .or('decision.ilike.%challenge%,decision.ilike.%deny%,decision.ilike.%block%')
     .order('date_calcul', { ascending: false })
     .limit(100);
 
   if (sErr) {
-    console.warn('[admin/alerts] fallback:', sErr.message);
-    return res.json({ success: true, data: empty });
+    console.warn('[admin/alerts] scores fallback:', sErr.message);
+    if (items.length === 0) {
+      return res.json({ success: true, data: empty });
+    }
+  } else {
+    for (const s of scores || []) {
+      const tx = s.transactions || {};
+      const keys = [
+        s.transaction_id && String(s.transaction_id),
+        tx.numero_transaction && String(tx.numero_transaction),
+      ].filter(Boolean);
+      if (keys.some((k) => seenTx.has(k))) continue;
+      const mapped = scoreToAlertItem(s);
+      items.push(mapped);
+      for (const k of keys) seenTx.add(k);
+    }
   }
 
-  const items = (scores || []).map((s) => {
-    const tx = s.transactions || {};
-    return {
-      id: s.transaction_id,
-      status: 'pending',
-      decision: s.decision,
-      score: s.score_combine ?? s.score_modele_transaction,
-      numero_transaction: tx.numero_transaction,
-      montant: tx.montant,
-      devise: tx.devise,
-      date: tx.date_transaction || s.date_calcul,
-      reference_beneficiaire: tx.reference_beneficiaire,
-      created_at: s.date_calcul,
-    };
-  });
-
+  // Tri : plus récent d’abord (time string relative — on garde ordre scores + alerts)
+  const pending = items.length;
   return res.json({
     success: true,
     data: {
       items,
       total: items.length,
-      stats: { pending: items.length, confirmedFraud: 0, falsePositives: 0 },
+      stats: { pending, confirmedFraud: 0, falsePositives: 0 },
     },
   });
 });
@@ -1623,7 +1774,8 @@ app.post('/api/v1/lisungi/analyze', async (req, res) => {
           score_combine,
           score_modele_transaction,
           score_modele_session,
-          score_modele_comportement
+          score_modele_comportement,
+          texte_motifs
         )
       `,
       )

@@ -121,6 +121,11 @@ export interface Transaction {
     scoreTransaction?: number | null;
     scoreSession?: number | null;
     scoreComportement?: number | null;
+    /** Couche phishing / vishing (0–100). */
+    scorePhishing?: number | null;
+    scoreVishing?: number | null;
+    phishingNiveau?: 'faible' | 'moyen' | 'eleve' | null;
+    vishingNiveau?: 'faible' | 'moyen' | 'eleve' | null;
   };
   /** Ligne API brute pour la modale détail (client, bénéficiaire, session, scores). */
   _adminSource?: AdminTransactionRow;

@@ -99,6 +99,7 @@ export interface AdminTransactionRow {
         score_modele_transaction?: number | null;
         score_modele_session?: number | null;
         score_modele_comportement?: number | null;
+        texte_motifs?: string | null;
       }
     | Array<{
         decision?: string | null;
@@ -106,6 +107,7 @@ export interface AdminTransactionRow {
         score_modele_transaction?: number | null;
         score_modele_session?: number | null;
         score_modele_comportement?: number | null;
+        texte_motifs?: string | null;
       }>
     | null;
 }

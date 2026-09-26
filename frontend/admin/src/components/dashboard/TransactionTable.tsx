@@ -9,6 +9,7 @@ import {
   decisionLabelFr,
   isFraudTransaction,
 } from '../../utils/decisionPolicy';
+import { socialBadgeClasses, socialNiveauLabel } from '../../utils/socialEngineering';
 import { TransactionDetailModal } from './TransactionDetailModal';
 
 export interface TransactionTablePagination {
@@ -172,7 +173,7 @@ export function TransactionTable({
           </div>
         )}
         <table
-          className={`w-full min-w-[1200px] border-collapse text-left sm:min-w-[1480px] ${isLoading ? 'pointer-events-none opacity-45' : ''}`}
+          className={`w-full min-w-[1320px] border-collapse text-left sm:min-w-[1620px] ${isLoading ? 'pointer-events-none opacity-45' : ''}`}
         >
           <thead>
             <tr className="sticky top-0 z-10 border-b border-slate-200/90 bg-slate-100/98 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-600 backdrop-blur-sm sm:text-[11px]">
@@ -229,6 +230,20 @@ export function TransactionTable({
               </th>
               <th rowSpan={2} className="min-w-[6.5rem] align-bottom whitespace-nowrap px-3 py-3 sm:px-4">
                 Décision
+              </th>
+              <th
+                rowSpan={2}
+                className="min-w-[5.5rem] align-bottom whitespace-nowrap px-2 py-3 text-center sm:px-3"
+                title="Score phishing 0–100 % (seuils 40 / 70)"
+              >
+                Phishing
+              </th>
+              <th
+                rowSpan={2}
+                className="min-w-[5.5rem] align-bottom whitespace-nowrap px-2 py-3 text-center sm:px-3"
+                title="Score vishing 0–100 % (seuils 40 / 70)"
+              >
+                Vishing
               </th>
               <th rowSpan={2} className="align-bottom whitespace-nowrap px-3 py-3 pr-4 sm:px-4">
                 Statut
@@ -346,6 +361,40 @@ export function TransactionTable({
                       />
                       {decisionLabelFr(decision)}
                     </span>
+                  </td>
+                  <td className="px-2 py-3 text-center sm:px-3">
+                    {tx._api?.scorePhishing != null ? (
+                      <span
+                        className={`inline-flex flex-col items-center gap-0.5 rounded-lg border px-2 py-1 ${socialBadgeClasses(tx._api.phishingNiveau)}`}
+                        title={socialNiveauLabel(tx._api.phishingNiveau)}
+                      >
+                        <span className="text-[11px] font-bold tabular-nums sm:text-xs">
+                          {Math.round(tx._api.scorePhishing)} %
+                        </span>
+                        <span className="text-[9px] font-medium uppercase tracking-wide opacity-80">
+                          {socialNiveauLabel(tx._api.phishingNiveau)}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-3 text-center sm:px-3">
+                    {tx._api?.scoreVishing != null ? (
+                      <span
+                        className={`inline-flex flex-col items-center gap-0.5 rounded-lg border px-2 py-1 ${socialBadgeClasses(tx._api.vishingNiveau)}`}
+                        title={socialNiveauLabel(tx._api.vishingNiveau)}
+                      >
+                        <span className="text-[11px] font-bold tabular-nums sm:text-xs">
+                          {Math.round(tx._api.scoreVishing)} %
+                        </span>
+                        <span className="text-[9px] font-medium uppercase tracking-wide opacity-80">
+                          {socialNiveauLabel(tx._api.vishingNiveau)}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-3 pr-4 sm:px-4">
                     {isFraudRow || decision === 'block' || decision === 'deny' ? (
