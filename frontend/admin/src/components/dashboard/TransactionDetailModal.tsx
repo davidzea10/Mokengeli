@@ -220,7 +220,7 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
               <>
                 <SectionCard
                   title="Modèles IA"
-                  subtitle="M1 = transaction (régression logistique). M2 session et M3 comportement : prochainement."
+                  subtitle="M1 transaction · M2 session · M3 comportement — scores combinés pour la décision."
                   icon={
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
@@ -233,32 +233,32 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
                   }
                 >
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm ring-1 ring-amber-900/5">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-900/70">
+                    <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900/70">
                         1 · Transaction (M1)
                       </p>
                       <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
                         {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_transaction?: unknown }).score_modele_transaction : undefined)}
                       </p>
-                      <p className="mt-1 text-xs text-slate-600">Risque frauduleux estimé (M1)</p>
+                      <p className="mt-1 text-xs text-slate-600">Risque frauduleux estimé</p>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900/70">
                         2 · Session (M2)
                       </p>
-                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-400">
+                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
                         {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_session?: unknown }).score_modele_session : undefined)}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">À brancher</p>
+                      <p className="mt-1 text-xs text-slate-600">Anomalie de session</p>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900/70">
                         3 · Comportement (M3)
                       </p>
-                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-400">
+                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
                         {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_comportement?: unknown }).score_modele_comportement : undefined)}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">À brancher</p>
+                      <p className="mt-1 text-xs text-slate-600">Comportement atypique</p>
                     </div>
                   </div>
                 </SectionCard>

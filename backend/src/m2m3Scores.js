@@ -1,7 +1,6 @@
 /**
- * M2 (session anormale) et M3 (comportement atypique).
- * Pas d’artefacts joblib dans le dépôt : scoring heuristique sur les features
- * déjà collectées (même vecteur que M1 / schéma satellites).
+ * M2 (session) et M3 (comportement) — simulation démo.
+ * Score aléatoire uniforme entre 1 % et 30 % (0.01 … 0.30) à chaque évaluation.
  */
 
 function clamp01(n) {
@@ -9,102 +8,38 @@ function clamp01(n) {
   return Math.min(1, Math.max(0, n));
 }
 
-function num(v, d = 0) {
-  const n = typeof v === 'string' ? parseFloat(v) : Number(v);
-  return Number.isFinite(n) ? n : d;
+/** Aléatoire inclusif [min, max], arrondi à 4 décimales. */
+function randomBetween(min, max) {
+  const v = min + Math.random() * (max - min);
+  return Math.round(v * 10000) / 10000;
 }
 
+const SIM_MIN = 0.01; // 1 %
+const SIM_MAX = 0.3; // 30 %
+
 /**
- * M2 — anomalie de session (UEBA / biométrie session).
- * @param {Record<string, number>} f features M1 (ou équivalent)
+ * M2 — score session simulé (1 %–30 %).
+ * @param {Record<string, number>} [_f] features (ignorées en mode simulation)
  */
-export function scoreM2Session(f) {
-  const reasons = [];
-  const echecs = clamp01(num(f.nb_echecs_login_24h) / 8);
-  if (echecs >= 0.35) reasons.push('m2_echecs_login');
-
-  const otp = clamp01(num(f.delai_otp_s) / 90);
-  if (otp >= 0.4) reasons.push('m2_delai_otp');
-
-  const auto = clamp01(num(f.score_probabilite_automatisation));
-  if (auto >= 0.4) reasons.push('m2_automatisation');
-
-  const rpm = clamp01(num(f.nombre_requetes_par_minute) / 40);
-  if (rpm >= 0.45) reasons.push('m2_requetes_minute');
-
-  const duree = num(f.duree_session_min);
-  let dureeScore = 0;
-  if (duree > 0 && duree < 0.5) {
-    dureeScore = 0.55;
-    reasons.push('m2_session_tres_courte');
-  } else if (duree > 180) {
-    dureeScore = clamp01((duree - 180) / 180);
-    reasons.push('m2_session_tres_longue');
-  }
-
-  const ecrans = clamp01(num(f.nb_ecrans_session) / 40);
-  if (ecrans >= 0.5) reasons.push('m2_parcours_anormal');
-
-  const score = clamp01(
-    0.22 * echecs +
-      0.18 * otp +
-      0.25 * auto +
-      0.15 * rpm +
-      0.12 * dureeScore +
-      0.08 * ecrans,
-  );
-
+export function scoreM2Session(_f) {
+  const score = randomBetween(SIM_MIN, SIM_MAX);
   return {
     score,
-    model: 'm2-heuristique-session-0.1',
-    reasons,
+    model: 'm2-simulation-session-0.2',
+    reasons: ['m2_simulation'],
   };
 }
 
 /**
- * M3 — comportement atypique vs profil habituel.
- * @param {Record<string, number>} f features M1 (ou équivalent)
+ * M3 — score comportement simulé (1 %–30 %).
+ * @param {Record<string, number>} [_f] features (ignorées en mode simulation)
  */
-export function scoreM3Behavior(f) {
-  const reasons = [];
-
-  const nouveau = num(f.beneficiaire_nouveau) >= 0.5 ? 0.55 : 0;
-  if (nouveau) reasons.push('m3_beneficiaire_nouveau');
-
-  const appareil = num(f.changement_appareil) >= 0.5 ? 0.5 : 0;
-  if (appareil) reasons.push('m3_changement_appareil');
-
-  const ratio = num(f.ratio_montant_median_30j);
-  let ratioScore = 0;
-  if (ratio >= 2.5) {
-    ratioScore = clamp01((ratio - 1) / 4);
-    reasons.push('m3_montant_atypique');
-  } else if (ratio > 0 && ratio < 0.15) {
-    ratioScore = 0.25;
-  }
-
-  const dist = clamp01(num(f.distance_km_habitude) / 400);
-  if (dist >= 0.4) reasons.push('m3_distance_habitude');
-
-  const pays = num(f.ip_pays_inhabituel) >= 0.5 ? 0.55 : 0;
-  if (pays) reasons.push('m3_ip_pays_inhabituel');
-
-  const vitesse = clamp01(num(f.vitesse_24h) / 20);
-  if (vitesse >= 0.5) reasons.push('m3_vitesse_24h');
-
-  const score = clamp01(
-    0.2 * nouveau +
-      0.15 * appareil +
-      0.25 * ratioScore +
-      0.15 * dist +
-      0.15 * pays +
-      0.1 * vitesse,
-  );
-
+export function scoreM3Behavior(_f) {
+  const score = randomBetween(SIM_MIN, SIM_MAX);
   return {
     score,
-    model: 'm3-heuristique-comportement-0.1',
-    reasons,
+    model: 'm3-simulation-comportement-0.2',
+    reasons: ['m3_simulation'],
   };
 }
 

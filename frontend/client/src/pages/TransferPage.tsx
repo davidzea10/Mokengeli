@@ -438,23 +438,16 @@ export function TransferPage() {
                 {transactionResult.decision === 'allow'
                   ? 'Succès'
                   : transactionResult.decision === 'challenge'
-                    ? 'Vérification requise'
-                    : 'Refusé'}
+                    ? 'En analyse'
+                    : 'Transaction refusée'}
               </p>
-              <div className="mt-4 w-full space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-700">
-                <p>
-                  <span className="text-slate-500">Risque fraude (M1)</span>{' '}
-                  <span className="font-semibold tabular-nums text-slate-900">
-                    {(transactionResult.score_m1 * 100).toFixed(2)}%
-                  </span>
-                  {transactionResult.m1_label ? (
-                    <span className="ml-2 text-xs text-slate-500">({transactionResult.m1_label})</span>
-                  ) : null}
-                </p>
-                {transactionResult.m1_fallback ? (
-                  <p className="text-xs text-amber-800">Modèle indisponible — score de secours.</p>
-                ) : null}
-              </div>
+              <p className={`mt-2 text-sm ${isDark ? 'text-neutral-400' : 'text-slate-600'}`}>
+                {transactionResult.decision === 'allow'
+                  ? 'Votre opération a été effectuée avec succès.'
+                  : transactionResult.decision === 'challenge'
+                    ? 'Votre opération est en cours d’analyse de sécurité. Aucun débit n’est confirmé pour le moment.'
+                    : 'Votre opération n’a pas pu être autorisée. Contactez le support si besoin.'}
+              </p>
             </div>
             <button
               type="button"

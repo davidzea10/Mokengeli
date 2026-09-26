@@ -380,11 +380,11 @@ export function ClientSessionProvider({ children }: { children: ReactNode }) {
   const getDecisionLabel = (decision: string) => {
     switch (decision) {
       case 'allow':
-        return 'Autorisé';
+        return 'Succès';
       case 'block':
-        return 'Bloqué';
+        return 'Refusée';
       case 'challenge':
-        return 'Vérification';
+        return 'En analyse';
       default:
         return decision;
     }
