@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { analyzeWithLisungi, isApiConfigured, type LisungiAnalyzeData } from '../api';
+import { analyzeWithLisungi, isApiConfigured, type LisungiAdvice, type LisungiAnalyzeData } from '../api';
 import { useClientSession } from '../context/ClientSessionContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -21,6 +21,8 @@ const ANALYZE_STEPS = [
 ];
 
 const MIN_ANALYZE_MS = 3200;
+const ITEM_REVEAL_MS = 720;
+const SECTION_PAUSE_MS = 480;
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => {
@@ -28,47 +30,7 @@ function sleep(ms: number) {
   });
 }
 
-function AdviceList({
-  title,
-  items,
-  tone,
-  isDark,
-  delayMs,
-}: {
-  title: string;
-  items: string[];
-  tone: 'amber' | 'sky' | 'emerald';
-  isDark: boolean;
-  delayMs: number;
-}) {
-  if (!items?.length) return null;
-  const tones = {
-    amber: isDark ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-200 bg-amber-50',
-    sky: isDark ? 'border-sky-500/30 bg-sky-500/10' : 'border-sky-200 bg-sky-50',
-    emerald: isDark ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50',
-  };
-  const titles = {
-    amber: isDark ? 'text-amber-200' : 'text-amber-900',
-    sky: isDark ? 'text-sky-200' : 'text-sky-900',
-    emerald: isDark ? 'text-emerald-200' : 'text-emerald-900',
-  };
-  return (
-    <section
-      className={`rounded-2xl border p-4 opacity-0 animate-[lisungiFadeUp_0.55s_ease-out_forwards] ${tones[tone]}`}
-      style={{ animationDelay: `${delayMs}ms` }}
-    >
-      <h3 className={`text-sm font-semibold ${titles[tone]}`}>{title}</h3>
-      <ul className={`mt-2 space-y-2 text-sm leading-relaxed ${isDark ? 'text-neutral-200' : 'text-slate-700'}`}>
-        {items.map((item, i) => (
-          <li key={`${title}-${i}`} className="flex gap-2">
-            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
-            <span className="whitespace-pre-wrap">{item}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
+type RevealPhase = 'idle' | 'analyzing' | 'resume' | 'remarques' | 'conseils' | 'recommandations' | 'marchands' | 'done';
 
 function AnalyzingPanel({
   stepIndex,
@@ -82,7 +44,9 @@ function AnalyzingPanel({
   return (
     <div
       className={`overflow-hidden rounded-2xl border p-5 sm:p-6 ${
-        isDark ? 'border-mk-blue/40 bg-gradient-to-br from-mk-blue/20 to-black/40' : 'border-mk-blue/30 bg-gradient-to-br from-sky-50 via-white to-indigo-50'
+        isDark
+          ? 'border-mk-blue/40 bg-gradient-to-br from-mk-blue/20 to-black/40'
+          : 'border-mk-blue/30 bg-gradient-to-br from-sky-50 via-white to-indigo-50'
       }`}
       role="status"
       aria-live="polite"
@@ -167,21 +131,122 @@ function AnalyzingPanel({
   );
 }
 
+function SectionWritingHeader({
+  title,
+  writing,
+  isDark,
+  tone,
+}: {
+  title: string;
+  writing: boolean;
+  isDark: boolean;
+  tone: 'amber' | 'sky' | 'emerald' | 'neutral';
+}) {
+  const titles = {
+    amber: isDark ? 'text-amber-200' : 'text-amber-900',
+    sky: isDark ? 'text-sky-200' : 'text-sky-900',
+    emerald: isDark ? 'text-emerald-200' : 'text-emerald-900',
+    neutral: isDark ? 'text-white' : 'text-gray-900',
+  };
+  return (
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <h3 className={`text-sm font-semibold ${titles[tone]}`}>{title}</h3>
+      {writing ? (
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+            isDark ? 'bg-mk-blue/25 text-sky-200' : 'bg-mk-blue/10 text-mk-blue-dark'
+          }`}
+        >
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-current/30 border-t-current" />
+          Rédaction…
+        </span>
+      ) : (
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+            isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          ✓ Prêt
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ProgressiveAdviceSection({
+  title,
+  items,
+  visibleCount,
+  writing,
+  tone,
+  isDark,
+}: {
+  title: string;
+  items: string[];
+  visibleCount: number;
+  writing: boolean;
+  tone: 'amber' | 'sky' | 'emerald';
+  isDark: boolean;
+}) {
+  if (!items.length && !writing) return null;
+  const tones = {
+    amber: isDark ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-200 bg-amber-50',
+    sky: isDark ? 'border-sky-500/30 bg-sky-500/10' : 'border-sky-200 bg-sky-50',
+    emerald: isDark ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50',
+  };
+  const shown = items.slice(0, visibleCount);
+
+  return (
+    <section className={`rounded-2xl border p-4 ${tones[tone]}`}>
+      <SectionWritingHeader title={title} writing={writing} isDark={isDark} tone={tone} />
+      <ul className={`space-y-2 text-sm leading-relaxed ${isDark ? 'text-neutral-200' : 'text-slate-700'}`}>
+        {shown.map((item, i) => (
+          <li
+            key={`${title}-${i}`}
+            className="flex gap-2 opacity-0 animate-[lisungiFadeUp_0.45s_ease-out_forwards]"
+          >
+            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
+            <span className="whitespace-pre-wrap">{item}</span>
+          </li>
+        ))}
+        {writing && visibleCount < items.length ? (
+          <li className={`flex items-center gap-2 text-xs ${isDark ? 'text-sky-200/80' : 'text-mk-blue'}`}>
+            <span className="flex gap-0.5">
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:0ms]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:120ms]" />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:240ms]" />
+            </span>
+            Analyse du point suivant…
+          </li>
+        ) : null}
+      </ul>
+    </section>
+  );
+}
+
 export function LisungiPage() {
   const { selectedProfile, userDisplayName } = useClientSession();
   const { isDark } = useTheme();
   const [question, setQuestion] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<LisungiAnalyzeData | null>(null);
-  const [reveal, setReveal] = useState(false);
+  const [phase, setPhase] = useState<RevealPhase>('idle');
   const [stepIndex, setStepIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [visibleRemarques, setVisibleRemarques] = useState(0);
+  const [visibleConseils, setVisibleConseils] = useState(0);
+  const [visibleRecos, setVisibleRecos] = useState(0);
+  const [showResume, setShowResume] = useState(false);
+  const [showMarchands, setShowMarchands] = useState(false);
+
   const stepTimerRef = useRef<number | null>(null);
   const progressTimerRef = useRef<number | null>(null);
+  const revealCancelRef = useRef(false);
 
   useEffect(() => {
     return () => {
+      revealCancelRef.current = true;
       if (stepTimerRef.current) window.clearInterval(stepTimerRef.current);
       if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
     };
@@ -196,6 +261,14 @@ export function LisungiPage() {
       window.clearInterval(progressTimerRef.current);
       progressTimerRef.current = null;
     }
+  };
+
+  const resetReveal = () => {
+    setShowResume(false);
+    setShowMarchands(false);
+    setVisibleRemarques(0);
+    setVisibleConseils(0);
+    setVisibleRecos(0);
   };
 
   const startAnalyzeMotion = () => {
@@ -213,6 +286,48 @@ export function LisungiPage() {
     }, 220);
   };
 
+  const revealAdviceSequentially = async (advice: LisungiAdvice, hasMarchands: boolean) => {
+    setPhase('resume');
+    await sleep(400);
+    if (revealCancelRef.current) return;
+    setShowResume(true);
+    await sleep(SECTION_PAUSE_MS + 200);
+
+    setPhase('remarques');
+    for (let i = 1; i <= advice.remarques.length; i++) {
+      if (revealCancelRef.current) return;
+      setVisibleRemarques(i);
+      await sleep(ITEM_REVEAL_MS);
+    }
+    await sleep(SECTION_PAUSE_MS);
+
+    setPhase('conseils');
+    for (let i = 1; i <= advice.conseils.length; i++) {
+      if (revealCancelRef.current) return;
+      setVisibleConseils(i);
+      await sleep(ITEM_REVEAL_MS);
+    }
+    await sleep(SECTION_PAUSE_MS);
+
+    setPhase('recommandations');
+    for (let i = 1; i <= advice.recommandations.length; i++) {
+      if (revealCancelRef.current) return;
+      setVisibleRecos(i);
+      await sleep(ITEM_REVEAL_MS);
+    }
+    await sleep(SECTION_PAUSE_MS);
+
+    if (hasMarchands) {
+      setPhase('marchands');
+      await sleep(350);
+      if (revealCancelRef.current) return;
+      setShowMarchands(true);
+      await sleep(500);
+    }
+
+    setPhase('done');
+  };
+
   const runAnalyze = async (q?: string) => {
     const prompt = (q ?? question).trim();
     setError('');
@@ -225,9 +340,14 @@ export function LisungiPage() {
       return;
     }
 
-    setLoading(true);
-    setReveal(false);
+    revealCancelRef.current = true;
+    await sleep(30);
+    revealCancelRef.current = false;
+
+    setBusy(true);
     setResult(null);
+    resetReveal();
+    setPhase('analyzing');
     startAnalyzeMotion();
     const started = Date.now();
 
@@ -245,28 +365,38 @@ export function LisungiPage() {
       if (!res.ok) {
         setError(res.message || 'Analyse impossible.');
         setResult(null);
+        setPhase('idle');
         return;
       }
 
-      await sleep(350);
+      await sleep(400);
       setResult(res.data);
-      setReveal(true);
       if (prompt) setQuestion(prompt);
+
+      const advice = res.data.advice;
+      const hasMarchands = Boolean(res.data.context_preview?.top_marchands?.length);
+      await revealAdviceSequentially(advice, hasMarchands);
     } finally {
       clearTimers();
-      setLoading(false);
+      setBusy(false);
+      if (!revealCancelRef.current) {
+        setPhase((p) => (p === 'analyzing' ? 'idle' : p));
+      }
     }
   };
 
   const card = isDark ? 'border-white/10 bg-white/[0.04]' : 'border-gray-200 bg-white shadow-sm';
   const textMuted = isDark ? 'text-neutral-400' : 'text-gray-600';
   const textMain = isDark ? 'text-white' : 'text-gray-900';
+  const analyzing = phase === 'analyzing';
+  const revealing = ['resume', 'remarques', 'conseils', 'recommandations', 'marchands'].includes(phase);
+  const advice = result?.advice;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <style>{`
         @keyframes lisungiFadeUp {
-          from { opacity: 0; transform: translateY(12px); }
+          from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes lisungiPulse {
@@ -305,7 +435,7 @@ export function LisungiPage() {
           id="lisungi-q"
           rows={3}
           value={question}
-          disabled={loading}
+          disabled={busy}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Ex. Comment puis-je payer plus sûrement chez mes marchands habituels ?"
           className={`w-full resize-none rounded-xl border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-mk-blue/40 disabled:opacity-60 ${
@@ -319,7 +449,7 @@ export function LisungiPage() {
             <button
               key={s}
               type="button"
-              disabled={loading}
+              disabled={busy}
               onClick={() => void runAnalyze(s)}
               className={`rounded-full border px-3 py-1 text-[11px] font-medium transition disabled:opacity-50 ${
                 isDark
@@ -333,14 +463,14 @@ export function LisungiPage() {
         </div>
         <button
           type="button"
-          disabled={loading}
+          disabled={busy}
           onClick={() => void runAnalyze()}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-mk-blue py-3 text-sm font-semibold text-white shadow-md shadow-mk-blue/25 transition hover:bg-mk-blue-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? (
+          {busy ? (
             <>
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              Analyse en cours…
+              {analyzing ? 'Analyse en cours…' : 'Rédaction des résultats…'}
             </>
           ) : (
             <>
@@ -360,63 +490,94 @@ export function LisungiPage() {
         ) : null}
       </div>
 
-      {loading ? <AnalyzingPanel stepIndex={stepIndex} progress={progress} isDark={isDark} /> : null}
+      {analyzing ? <AnalyzingPanel stepIndex={stepIndex} progress={progress} isDark={isDark} /> : null}
 
-      {!loading && reveal && result?.advice ? (
+      {(revealing || phase === 'done') && advice ? (
         <div className="space-y-3">
-          <div
-            className={`rounded-2xl border p-4 opacity-0 animate-[lisungiFadeUp_0.5s_ease-out_forwards] ${card}`}
-            style={{ animationDelay: '80ms' }}
-          >
-            <p className={`text-xs font-semibold uppercase tracking-wide ${textMuted}`}>Synthèse</p>
-            <p className={`mt-2 text-sm leading-relaxed ${textMain}`}>{result.advice.resume}</p>
-            {result.context_preview ? (
-              <div className={`mt-3 flex flex-wrap gap-2 text-[11px] ${textMuted}`}>
-                {result.context_preview.nb_transactions != null ? (
-                  <span className="rounded-full border border-current/20 px-2 py-0.5">
-                    {result.context_preview.nb_transactions} ops
-                  </span>
-                ) : null}
-                {result.context_preview.avg_risk_pct != null ? (
-                  <span className="rounded-full border border-current/20 px-2 py-0.5">
-                    Risque moy. {result.context_preview.avg_risk_pct} %
-                  </span>
-                ) : null}
-                {result.advice.mode ? (
-                  <span className="rounded-full border border-current/20 px-2 py-0.5">{result.advice.mode}</span>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+          {showResume ? (
+            <div className={`rounded-2xl border p-4 opacity-0 animate-[lisungiFadeUp_0.5s_ease-out_forwards] ${card}`}>
+              <SectionWritingHeader
+                title="Synthèse"
+                writing={phase === 'resume'}
+                isDark={isDark}
+                tone="neutral"
+              />
+              <p className={`mt-1 text-sm leading-relaxed ${textMain}`}>{advice.resume}</p>
+              {result?.context_preview ? (
+                <div className={`mt-3 flex flex-wrap gap-2 text-[11px] ${textMuted}`}>
+                  {result.context_preview.nb_transactions != null ? (
+                    <span className="rounded-full border border-current/20 px-2 py-0.5">
+                      {result.context_preview.nb_transactions} ops
+                    </span>
+                  ) : null}
+                  {result.context_preview.avg_risk_pct != null ? (
+                    <span className="rounded-full border border-current/20 px-2 py-0.5">
+                      Risque moy. {result.context_preview.avg_risk_pct} %
+                    </span>
+                  ) : null}
+                  {advice.mode ? (
+                    <span className="rounded-full border border-current/20 px-2 py-0.5">{advice.mode}</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
-          <AdviceList
-            title="Remarques"
-            items={result.advice.remarques}
-            tone="amber"
-            isDark={isDark}
-            delayMs={180}
-          />
-          <AdviceList
-            title="Conseils"
-            items={result.advice.conseils}
-            tone="sky"
-            isDark={isDark}
-            delayMs={320}
-          />
-          <AdviceList
-            title="Recommandations d’amélioration"
-            items={result.advice.recommandations}
-            tone="emerald"
-            isDark={isDark}
-            delayMs={460}
-          />
+          {(phase === 'remarques' ||
+            phase === 'conseils' ||
+            phase === 'recommandations' ||
+            phase === 'marchands' ||
+            phase === 'done' ||
+            visibleRemarques > 0) &&
+          advice.remarques.length > 0 ? (
+            <ProgressiveAdviceSection
+              title="Remarques"
+              items={advice.remarques}
+              visibleCount={visibleRemarques}
+              writing={phase === 'remarques'}
+              tone="amber"
+              isDark={isDark}
+            />
+          ) : null}
 
-          {result.context_preview?.top_marchands && result.context_preview.top_marchands.length > 0 ? (
+          {(phase === 'conseils' ||
+            phase === 'recommandations' ||
+            phase === 'marchands' ||
+            phase === 'done' ||
+            visibleConseils > 0) &&
+          advice.conseils.length > 0 ? (
+            <ProgressiveAdviceSection
+              title="Conseils"
+              items={advice.conseils}
+              visibleCount={visibleConseils}
+              writing={phase === 'conseils'}
+              tone="sky"
+              isDark={isDark}
+            />
+          ) : null}
+
+          {(phase === 'recommandations' || phase === 'marchands' || phase === 'done' || visibleRecos > 0) &&
+          advice.recommandations.length > 0 ? (
+            <ProgressiveAdviceSection
+              title="Recommandations d’amélioration"
+              items={advice.recommandations}
+              visibleCount={visibleRecos}
+              writing={phase === 'recommandations'}
+              tone="emerald"
+              isDark={isDark}
+            />
+          ) : null}
+
+          {showMarchands && result?.context_preview?.top_marchands?.length ? (
             <section
               className={`rounded-2xl border p-4 opacity-0 animate-[lisungiFadeUp_0.55s_ease-out_forwards] ${card}`}
-              style={{ animationDelay: '600ms' }}
             >
-              <h3 className={`text-sm font-semibold ${textMain}`}>Marchands / bénéficiaires (contexte RAG)</h3>
+              <SectionWritingHeader
+                title="Marchands / bénéficiaires (contexte RAG)"
+                writing={phase === 'marchands'}
+                isDark={isDark}
+                tone="neutral"
+              />
               <ul className={`mt-2 space-y-1.5 text-sm ${textMuted}`}>
                 {result.context_preview.top_marchands.map((m) => (
                   <li key={m.name} className="flex justify-between gap-2">
@@ -428,6 +589,10 @@ export function LisungiPage() {
                 ))}
               </ul>
             </section>
+          ) : null}
+
+          {phase === 'done' ? (
+            <p className={`text-center text-xs ${textMuted}`}>Analyse Lisungi terminée.</p>
           ) : null}
         </div>
       ) : null}
