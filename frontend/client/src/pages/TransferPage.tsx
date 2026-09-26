@@ -5,12 +5,12 @@ import { useClientSession } from '../context/ClientSessionContext';
 import { useTheme } from '../context/ThemeContext';
 import { isValidPhoneRdcInput } from '../utils/phoneDigits';
 
-const AUTRES_BANQUES = CONGO_BANKS.filter((b) => b.code !== 'RAWBANK');
+const AUTRES_BANQUES = CONGO_BANKS.filter((b) => b.code !== 'MOKENGELI');
 
 const flowLabels: Record<BankFlow, string> = {
-  rawbank_rawbank: 'RawBank → RawBank',
-  rawbank_autre: 'RawBank → autre banque',
-  rawbank_vers_mobile: 'RawBank → mobile money',
+  interne: 'Mokengeli → Mokengeli',
+  autre_banque: 'Mokengeli → autre banque',
+  vers_mobile: 'Mokengeli → mobile money',
 };
 
 export function TransferPage() {
@@ -37,9 +37,9 @@ export function TransferPage() {
     setBeneficiaryError('');
     setFormData((prev) => {
       let ben_banque_code = prev.ben_banque_code;
-      if (flow === 'rawbank_rawbank') ben_banque_code = 'RAWBANK';
-      else if (flow === 'rawbank_autre') ben_banque_code = '';
-      else ben_banque_code = 'RAWBANK';
+      if (flow === 'interne') ben_banque_code = 'MOKENGELI';
+      else if (flow === 'autre_banque') ben_banque_code = '';
+      else ben_banque_code = 'MOKENGELI';
       return { ...prev, bank_flow: flow, ben_banque_code };
     });
   };
@@ -49,13 +49,13 @@ export function TransferPage() {
     setFormData((prev) => ({
       ...prev,
       beneficiary_mode: mode,
-      bank_flow: mode === 'banque' ? 'rawbank_rawbank' : prev.bank_flow,
-      ben_banque_code: mode === 'banque' ? 'RAWBANK' : prev.ben_banque_code,
+      bank_flow: mode === 'banque' ? 'interne' : prev.bank_flow,
+      ben_banque_code: mode === 'banque' ? 'MOKENGELI' : prev.ben_banque_code,
     }));
   };
 
   const isBank = formData.beneficiary_mode === 'banque';
-  const isFlowMobile = formData.bank_flow === 'rawbank_vers_mobile';
+  const isFlowMobile = formData.bank_flow === 'vers_mobile';
   const isStandaloneMobile = formData.beneficiary_mode === 'mobile_money';
 
   const disableSubmit = useMemo(() => {
@@ -66,7 +66,7 @@ export function TransferPage() {
     }
     if (isBank && !isFlowMobile) {
       if (!formData.ben_compte_identifiant.trim()) return true;
-      if (formData.bank_flow === 'rawbank_autre' && !formData.ben_banque_code.trim()) return true;
+      if (formData.bank_flow === 'autre_banque' && !formData.ben_banque_code.trim()) return true;
     }
     return false;
   }, [isLoading, formData, accountBalance, isBank, isFlowMobile, isStandaloneMobile]);
@@ -81,7 +81,7 @@ export function TransferPage() {
         </h1>
         <p className={`mt-1 text-xs sm:text-sm ${isDark ? 'text-neutral-400' : 'text-gray-600'}`}>
           Solde disponible :{' '}
-          <span className="font-semibold tabular-nums text-rb-yellow">{accountBalance.toLocaleString('fr-FR')} FC</span>
+          <span className="font-semibold tabular-nums text-mk-blue">{accountBalance.toLocaleString('fr-FR')} FC</span>
         </p>
       </header>
 
@@ -141,19 +141,19 @@ export function TransferPage() {
                 onClick={() => setMode('banque')}
                 className={`rounded-xl border-2 px-3 py-3 text-left text-sm font-medium transition ${
                   isBank
-                    ? 'border-rb-yellow bg-rb-yellow/10 text-gray-900'
+                    ? 'border-mk-blue bg-mk-blue/10 text-gray-900'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                 }`}
               >
                 Compte bancaire
-                <span className="mt-1 block text-[11px] font-normal text-gray-500">Virement RawBank</span>
+                <span className="mt-1 block text-[11px] font-normal text-gray-500">Virement Mokengeli</span>
               </button>
               <button
                 type="button"
                 onClick={() => setMode('mobile_money')}
                 className={`rounded-xl border-2 px-3 py-3 text-left text-sm font-medium transition ${
                   isStandaloneMobile
-                    ? 'border-rb-yellow bg-rb-yellow/10 text-gray-900'
+                    ? 'border-mk-blue bg-mk-blue/10 text-gray-900'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                 }`}
               >
@@ -167,14 +167,14 @@ export function TransferPage() {
             <div className="space-y-3">
               <p className="text-sm font-medium text-gray-800">Type de virement</p>
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                {(['rawbank_rawbank', 'rawbank_autre', 'rawbank_vers_mobile'] as const).map((flow) => (
+                {(['interne', 'autre_banque', 'vers_mobile'] as const).map((flow) => (
                   <button
                     key={flow}
                     type="button"
                     onClick={() => setBankFlow(flow)}
                     className={`flex-1 rounded-xl border px-3 py-2.5 text-center text-xs font-medium transition sm:min-w-[140px] sm:flex-none sm:text-sm ${
                       formData.bank_flow === flow
-                        ? 'border-rb-yellow bg-rb-yellow/15 text-gray-900 ring-1 ring-rb-yellow/40'
+                        ? 'border-mk-blue bg-mk-blue/15 text-gray-900 ring-1 ring-mk-blue/40'
                         : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                     }`}
                   >
@@ -194,7 +194,7 @@ export function TransferPage() {
                   inputMode="tel"
                   value={formData.ben_telephone}
                   onChange={(e) => setFormData({ ...formData, ben_telephone: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                   placeholder="0894123456 ou +243…"
                 />
               </div>
@@ -204,7 +204,7 @@ export function TransferPage() {
                   type="text"
                   value={formData.ben_titulaire}
                   onChange={(e) => setFormData({ ...formData, ben_titulaire: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                   placeholder="Nom affiché"
                 />
               </div>
@@ -213,7 +213,7 @@ export function TransferPage() {
                 <select
                   value={formData.ben_operateur}
                   onChange={(e) => setFormData({ ...formData, ben_operateur: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                 >
                   <option value="">—</option>
                   <option value="Orange Money">Orange Money</option>
@@ -227,7 +227,7 @@ export function TransferPage() {
 
           {isBank && (
             <>
-              {formData.bank_flow !== 'rawbank_vers_mobile' && (
+              {formData.bank_flow !== 'vers_mobile' && (
                 <div className="space-y-4 rounded-xl border border-gray-100 bg-neutral-50/50 p-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Numéro de compte</label>
@@ -236,17 +236,17 @@ export function TransferPage() {
                       autoComplete="off"
                       value={formData.ben_compte_identifiant}
                       onChange={(e) => setFormData({ ...formData, ben_compte_identifiant: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-mono text-sm text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-mono text-sm text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                       placeholder="IBAN ou numéro local"
                     />
                   </div>
-                  {formData.bank_flow === 'rawbank_autre' && (
+                  {formData.bank_flow === 'autre_banque' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Banque du bénéficiaire</label>
                       <select
                         value={formData.ben_banque_code}
                         onChange={(e) => setFormData({ ...formData, ben_banque_code: e.target.value })}
-                        className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                        className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                       >
                         <option value="">— Choisir une banque —</option>
                         {AUTRES_BANQUES.map((b) => (
@@ -257,8 +257,8 @@ export function TransferPage() {
                       </select>
                     </div>
                   )}
-                  {formData.bank_flow === 'rawbank_rawbank' && (
-                    <p className="text-xs text-gray-500">Virement interne RawBank — même banque.</p>
+                  {formData.bank_flow === 'interne' && (
+                    <p className="text-xs text-gray-500">Virement interne Mokengeli — même banque.</p>
                   )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Titulaire (facultatif)</label>
@@ -266,17 +266,17 @@ export function TransferPage() {
                       type="text"
                       value={formData.ben_titulaire}
                       onChange={(e) => setFormData({ ...formData, ben_titulaire: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                       placeholder="Nom du bénéficiaire"
                     />
                   </div>
                 </div>
               )}
 
-              {formData.bank_flow === 'rawbank_vers_mobile' && (
+              {formData.bank_flow === 'vers_mobile' && (
                 <div className="space-y-4 rounded-xl border border-gray-100 bg-neutral-50/50 p-4">
                   <p className="text-xs text-gray-600">
-                    Envoi depuis votre compte RawBank vers un numéro mobile money.
+                    Envoi depuis votre compte Mokengeli vers un numéro mobile money.
                   </p>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Numéro de téléphone</label>
@@ -285,7 +285,7 @@ export function TransferPage() {
                       inputMode="tel"
                       value={formData.ben_telephone}
                       onChange={(e) => setFormData({ ...formData, ben_telephone: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                       placeholder="0894123456 ou +243…"
                     />
                   </div>
@@ -295,7 +295,7 @@ export function TransferPage() {
                       type="text"
                       value={formData.ben_titulaire}
                       onChange={(e) => setFormData({ ...formData, ben_titulaire: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                     />
                   </div>
                   <div>
@@ -303,7 +303,7 @@ export function TransferPage() {
                     <select
                       value={formData.ben_operateur}
                       onChange={(e) => setFormData({ ...formData, ben_operateur: e.target.value })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
                     >
                       <option value="">—</option>
                       <option value="Orange Money">Orange Money</option>
@@ -323,7 +323,7 @@ export function TransferPage() {
               <select
                 value={formData.type_transaction}
                 onChange={(e) => setFormData({ ...formData, type_transaction: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
               >
                 <option value="virement">Virement</option>
                 <option value="p2p">P2P</option>
@@ -338,7 +338,7 @@ export function TransferPage() {
               <select
                 value={formData.canal}
                 onChange={(e) => setFormData({ ...formData, canal: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-rb-yellow focus:outline-none focus:ring-2 focus:ring-rb-yellow/25"
+                className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-gray-900 focus:border-mk-blue focus:outline-none focus:ring-2 focus:ring-mk-blue/25"
               >
                 <option value="app">Application</option>
                 <option value="web">Web</option>
@@ -354,7 +354,7 @@ export function TransferPage() {
                 type="checkbox"
                 checked={formData.beneficiaire_nouveau}
                 onChange={(e) => setFormData({ ...formData, beneficiaire_nouveau: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300 text-rb-yellow focus:ring-rb-yellow/30"
+                className="h-4 w-4 rounded border-gray-300 text-mk-blue focus:ring-mk-blue/30"
               />
               Nouveau bénéficiaire
             </label>
@@ -363,7 +363,7 @@ export function TransferPage() {
                 type="checkbox"
                 checked={formData.changement_appareil}
                 onChange={(e) => setFormData({ ...formData, changement_appareil: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300 text-rb-yellow focus:ring-rb-yellow/30"
+                className="h-4 w-4 rounded border-gray-300 text-mk-blue focus:ring-mk-blue/30"
               />
               Appareil différent
             </label>
@@ -372,7 +372,7 @@ export function TransferPage() {
                 type="checkbox"
                 checked={formData.ip_pays_inhabituel}
                 onChange={(e) => setFormData({ ...formData, ip_pays_inhabituel: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300 text-rb-yellow focus:ring-rb-yellow/30"
+                className="h-4 w-4 rounded border-gray-300 text-mk-blue focus:ring-mk-blue/30"
               />
               Connexion inhabituelle
             </label>
@@ -382,7 +382,7 @@ export function TransferPage() {
             type="button"
             onClick={() => void simulateTransaction()}
             disabled={disableSubmit}
-            className="w-full rounded-xl bg-rb-yellow py-3.5 text-base font-semibold text-rb-black shadow-md transition hover:bg-rb-yellow-dark disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+            className="w-full rounded-xl bg-mk-blue py-3.5 text-base font-semibold text-white shadow-md transition hover:bg-mk-blue-dark disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
           >
             {isLoading ? 'Traitement…' : 'Valider l’opération'}
           </button>
@@ -462,7 +462,7 @@ export function TransferPage() {
                 setShowModal(false);
                 resetFormAfterModal();
               }}
-              className="mt-6 w-full rounded-xl bg-rb-yellow py-3 text-base font-semibold text-rb-black hover:bg-rb-yellow-dark"
+              className="mt-6 w-full rounded-xl bg-mk-blue py-3 text-base font-semibold text-white hover:bg-mk-blue-dark"
             >
               Fermer
             </button>

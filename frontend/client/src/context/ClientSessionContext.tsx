@@ -52,7 +52,7 @@ interface ClientFormState {
   changement_appareil: boolean;
   ip_pays_inhabituel: boolean;
   beneficiary_mode: 'banque' | 'mobile_money';
-  /** Sous-flux bancaire (RawBank → RawBank, autre banque RDC, ou vers mobile money). */
+  /** Sous-flux : interne Mokengeli, autre banque RDC, ou mobile money. */
   bank_flow: BankFlow;
   ben_compte_identifiant: string;
   ben_banque_code: string;
@@ -70,9 +70,9 @@ const initialForm = (): ClientFormState => ({
   changement_appareil: false,
   ip_pays_inhabituel: false,
   beneficiary_mode: 'banque',
-  bank_flow: 'rawbank_rawbank',
+  bank_flow: 'interne',
   ben_compte_identifiant: '',
-  ben_banque_code: 'RAWBANK',
+  ben_banque_code: 'MOKENGELI',
   ben_titulaire: '',
   ben_telephone: '',
   ben_operateur: '',
@@ -218,7 +218,7 @@ export function ClientSessionProvider({ children }: { children: ReactNode }) {
         );
         return;
       }
-    } else if (formData.bank_flow === 'rawbank_vers_mobile') {
+    } else if (formData.bank_flow === 'vers_mobile') {
       if (!isValidPhoneRdcInput(formData.ben_telephone)) {
         setBeneficiaryError(
           'Numéro mobile : 10 chiffres ou +243… (ex. 0894123456).'
@@ -230,7 +230,7 @@ export function ClientSessionProvider({ children }: { children: ReactNode }) {
         setBeneficiaryError('Indiquez le numéro de compte du bénéficiaire.');
         return;
       }
-      if (formData.bank_flow === 'rawbank_autre' && !formData.ben_banque_code.trim()) {
+      if (formData.bank_flow === 'autre_banque' && !formData.ben_banque_code.trim()) {
         setBeneficiaryError('Choisissez la banque du bénéficiaire.');
         return;
       }

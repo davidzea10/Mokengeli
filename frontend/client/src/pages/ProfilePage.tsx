@@ -40,9 +40,9 @@ export function ProfilePage() {
       </div>
 
       <div className={`rounded-2xl border overflow-hidden ${cardShell}`}>
-        <div className="bg-gradient-to-r from-rb-black to-rb-black-muted px-5 py-6 text-white">
+        <div className="bg-gradient-to-r from-mk-ink to-mk-ink-muted px-5 py-6 text-white">
           <p className="text-sm text-neutral-400">Titulaire</p>
-          <p className="text-xl font-semibold text-rb-yellow-bright">{userDisplayName}</p>
+          <p className="text-xl font-semibold text-mk-blue-bright">{userDisplayName}</p>
           <p className="text-xs text-neutral-400 mt-2 font-mono">Réf. client {selectedProfile}</p>
         </div>
         <dl className={`divide-y divide-gray-100 ${isDark ? 'bg-white' : ''}`}>

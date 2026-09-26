@@ -1,16 +1,11 @@
-/** Banques présentes en RDC — codes internes pour l’API (banque_code). */
+/** Banques RDC disponibles pour les virements interbancaires. */
 export const CONGO_BANKS = [
-  { code: 'RAWBANK', label: 'RawBank' },
-  { code: 'EQUITY_BCDC', label: 'Equity BCDC' },
-  { code: 'ECOBANK', label: 'Ecobank RDC' },
-  { code: 'FBNBANK', label: 'FBNBank (First Bank)' },
-  { code: 'TRUST', label: 'Trust Merchant Bank' },
+  { code: 'MOKENGELI', label: 'Mokengeli' },
+  { code: 'EQUITYBCDC', label: 'Equity BCDC' },
+  { code: 'TMB', label: 'Trust Merchant Bank' },
   { code: 'BOA', label: 'Bank of Africa' },
+  { code: 'SOFIBANQUE', label: 'Sofibanque' },
+  { code: 'UBA', label: 'UBA RDC' },
+  { code: 'ECOBANK', label: 'Ecobank' },
   { code: 'ACCESS', label: 'Access Bank' },
-  { code: 'SOLIDAIRE', label: 'Financière FCC (Solidaire)' },
-  { code: 'STANBIC', label: 'Stanbic Bank' },
-  { code: 'UBA', label: 'United Bank for Africa' },
-  { code: 'AUTRE', label: 'Autre établissement' },
 ] as const;
-
-export type CongoBankCode = (typeof CONGO_BANKS)[number]['code'];

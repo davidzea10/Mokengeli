@@ -6,8 +6,10 @@
  */
 import 'dotenv/config';
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
 import { buildM1TransactionFeatures, runM1PythonPredict } from './m1Features.js';
+import { scoreM2Session, scoreM3Behavior, combineScores } from './m2m3Scores.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -200,6 +202,549 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+function normalizePhoneDigits(s) {
+  return String(s || '').replace(/\D/g, '');
+}
+
+function maskPan(raw) {
+  if (raw == null || raw === '') return '—';
+  const d = String(raw).replace(/\D/g, '');
+  if (d.length < 4) return '••••';
+  return `•••• •••• •••• ${d.slice(-4)}`;
+}
+
+async function findClientAuthRow(identifier) {
+  const raw = String(identifier || '').trim();
+  if (!raw) return { data: null };
+  const cols = 'id, reference_client, password_hash, nom_complet, email, telephone';
+
+  const { data: byRef, error: e1 } = await supabase
+    .from('clients')
+    .select(cols)
+    .eq('reference_client', raw)
+    .maybeSingle();
+  if (e1) return { error: e1.message };
+  if (byRef) return { data: byRef };
+
+  if (raw.includes('@')) {
+    const { data: byEmail, error: e2 } = await supabase
+      .from('clients')
+      .select(cols)
+      .ilike('email', raw)
+      .maybeSingle();
+    if (e2) return { error: e2.message };
+    if (byEmail) return { data: byEmail };
+  }
+
+  const { data: byTel, error: e3 } = await supabase
+    .from('clients')
+    .select(cols)
+    .eq('telephone', raw)
+    .maybeSingle();
+  if (e3) return { error: e3.message };
+  if (byTel) return { data: byTel };
+
+  const digits = normalizePhoneDigits(raw);
+  if (digits.length >= 9) {
+    const { data: rows, error: e4 } = await supabase
+      .from('clients')
+      .select(cols)
+      .not('telephone', 'is', null)
+      .limit(500);
+    if (e4) return { error: e4.message };
+    const found = (rows || []).find((r) => normalizePhoneDigits(r.telephone) === digits);
+    if (found) return { data: found };
+  }
+
+  return { data: null };
+}
+
+async function findClientWithComptes(referenceClient) {
+  const { data, error } = await supabase
+    .from('clients')
+    .select(
+      `
+      id,
+      reference_client,
+      email,
+      telephone,
+      nom_complet,
+      adresse_physique,
+      ville,
+      pays,
+      date_creation,
+      date_mise_a_jour,
+      comptes_bancaires (
+        id,
+        numero_compte,
+        devise_compte,
+        libelle,
+        est_compte_principal,
+        solde_disponible,
+        date_ouverture,
+        cartes_bancaires (
+          id,
+          numero_carte,
+          type_carte,
+          date_expiration,
+          statut
+        )
+      )
+    `,
+    )
+    .eq('reference_client', referenceClient)
+    .maybeSingle();
+  if (error) return { error: error.message };
+  return { data };
+}
+
+function buildMePayload(row) {
+  const { comptes_bancaires: comptesRaw, ...client } = row;
+  const comptes = Array.isArray(comptesRaw) ? comptesRaw : [];
+  const soldesParCompte = comptes.map((c) => {
+    const cartesRaw = Array.isArray(c.cartes_bancaires) ? c.cartes_bancaires : [];
+    const cartes = cartesRaw.map((card) => ({
+      carte_id: card.id,
+      compte_id: c.id,
+      numero_affiche: maskPan(card.numero_carte),
+      type_carte: card.type_carte ?? null,
+      date_expiration: card.date_expiration ?? null,
+      statut: card.statut ?? null,
+    }));
+    return {
+      compte_id: c.id,
+      numero_compte: c.numero_compte,
+      devise: c.devise_compte,
+      libelle: c.libelle,
+      est_compte_principal: Boolean(c.est_compte_principal),
+      solde_disponible: c.solde_disponible == null ? null : Number(c.solde_disponible),
+      date_ouverture: c.date_ouverture ?? null,
+      cartes,
+    };
+  });
+  const solde_total = soldesParCompte.reduce(
+    (acc, c) => acc + (Number.isFinite(c.solde_disponible) ? c.solde_disponible : 0),
+    0,
+  );
+  return {
+    client: {
+      id: client.id,
+      reference_client: client.reference_client,
+      nom_complet: client.nom_complet ?? null,
+      email: client.email ?? null,
+      telephone: client.telephone ?? null,
+      adresse_physique: client.adresse_physique ?? null,
+      ville: client.ville ?? null,
+      pays: client.pays ?? null,
+    },
+    comptes: soldesParCompte,
+    solde_total,
+  };
+}
+
+/** POST /api/v1/client/login — identifiant (référence / e-mail / téléphone) + mot de passe */
+app.post('/api/v1/client/login', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const password = String(req.body?.password || '');
+    if (!name || !password) {
+      return res.status(422).json({
+        success: false,
+        error: { message: 'name et password requis', code: 'VALIDATION_ERROR' },
+      });
+    }
+
+    const auth = await findClientAuthRow(name);
+    if (auth.error) {
+      return res.status(500).json({
+        success: false,
+        error: { message: auth.error, code: 'DATABASE_ERROR' },
+      });
+    }
+    if (!auth.data) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Identifiants incorrects', code: 'INVALID_CREDENTIALS' },
+      });
+    }
+    if (!auth.data.password_hash || String(auth.data.password_hash).trim() === '') {
+      return res.status(403).json({
+        success: false,
+        error: {
+          message:
+            'Mot de passe non configuré pour ce compte. Définissez password_hash (bcrypt) en base.',
+          code: 'PASSWORD_NOT_CONFIGURED',
+        },
+      });
+    }
+
+    const ok = await bcrypt.compare(password, auth.data.password_hash);
+    if (!ok) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Identifiants incorrects', code: 'INVALID_CREDENTIALS' },
+      });
+    }
+
+    const full = await findClientWithComptes(auth.data.reference_client);
+    if (full.error || !full.data) {
+      return res.status(500).json({
+        success: false,
+        error: { message: full.error || 'Profil client introuvable', code: 'DATABASE_ERROR' },
+      });
+    }
+
+    const c = full.data;
+    return res.json({
+      success: true,
+      data: {
+        reference_client: c.reference_client,
+        client: {
+          id: c.id,
+          reference_client: c.reference_client,
+          nom_complet: c.nom_complet ?? null,
+          email: c.email ?? null,
+        },
+        next_step: `GET /api/v1/me?reference_client=${encodeURIComponent(c.reference_client)}`,
+      },
+    });
+  } catch (err) {
+    console.error('[client/login]', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: err?.message || 'Erreur serveur', code: 'INTERNAL_ERROR' },
+    });
+  }
+});
+
+app.post('/api/v1/client/logout', (req, res) => {
+  return res.json({
+    success: true,
+    data: { logged_out: true, profile_id: req.body?.profile_id ?? null },
+  });
+});
+
+/** GET /api/v1/me?reference_client=… — profil + comptes + soldes */
+app.get('/api/v1/me', async (req, res) => {
+  try {
+    const referenceClient = String(req.query.reference_client || '').trim();
+    if (!referenceClient) {
+      return res.status(422).json({
+        success: false,
+        error: { message: 'reference_client requis', code: 'VALIDATION_ERROR' },
+      });
+    }
+    const full = await findClientWithComptes(referenceClient);
+    if (full.error) {
+      return res.status(500).json({
+        success: false,
+        error: { message: full.error, code: 'DATABASE_ERROR' },
+      });
+    }
+    if (!full.data) {
+      return res.status(404).json({
+        success: false,
+        error: { message: `Client introuvable : ${referenceClient}`, code: 'NOT_FOUND' },
+      });
+    }
+    return res.json({ success: true, data: buildMePayload(full.data) });
+  } catch (err) {
+    console.error('[me]', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: err?.message || 'Erreur serveur', code: 'INTERNAL_ERROR' },
+    });
+  }
+});
+
+async function resolveClientIdByReference(referenceClient) {
+  const ref = String(referenceClient || '').trim();
+  if (!ref) {
+    return { error: 'reference_client requis', statusCode: 422, code: 'VALIDATION_ERROR' };
+  }
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('reference_client', ref)
+    .maybeSingle();
+  if (error) {
+    return { error: error.message, statusCode: 500, code: 'DATABASE_ERROR' };
+  }
+  if (!data) {
+    return { error: `Client introuvable : ${ref}`, statusCode: 404, code: 'NOT_FOUND' };
+  }
+  return { clientId: data.id };
+}
+
+function isMissingTableError(message) {
+  const m = String(message || '').toLowerCase();
+  return m.includes('does not exist') || m.includes('schema cache') || m.includes('could not find the table');
+}
+
+/** GET /api/v1/me/notifications?reference_client=&limit=&offset= */
+app.get('/api/v1/me/notifications', async (req, res) => {
+  try {
+    const resolved = await resolveClientIdByReference(req.query.reference_client);
+    if (resolved.error) {
+      return res.status(resolved.statusCode).json({
+        success: false,
+        error: { message: resolved.error, code: resolved.code },
+      });
+    }
+    const lim = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const off = Math.max(Number(req.query.offset) || 0, 0);
+    const { data, error } = await supabase
+      .from('notifications_client')
+      .select('id, kind, lu, payload, created_at')
+      .eq('client_id', resolved.clientId)
+      .order('created_at', { ascending: false })
+      .range(off, off + lim - 1);
+    if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.json({ success: true, data: { notifications: [] } });
+      }
+      return res.status(500).json({
+        success: false,
+        error: { message: error.message, code: 'DATABASE_ERROR' },
+      });
+    }
+    return res.json({ success: true, data: { notifications: data || [] } });
+  } catch (err) {
+    console.error('[me/notifications]', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: err?.message || 'Erreur serveur', code: 'INTERNAL_ERROR' },
+    });
+  }
+});
+
+/** GET /api/v1/me/notifications/unread-count?reference_client= */
+app.get('/api/v1/me/notifications/unread-count', async (req, res) => {
+  try {
+    const resolved = await resolveClientIdByReference(req.query.reference_client);
+    if (resolved.error) {
+      return res.status(resolved.statusCode).json({
+        success: false,
+        error: { message: resolved.error, code: resolved.code },
+      });
+    }
+    const { count, error } = await supabase
+      .from('notifications_client')
+      .select('*', { count: 'exact', head: true })
+      .eq('client_id', resolved.clientId)
+      .eq('lu', false);
+    if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.json({ success: true, data: { unread_count: 0 } });
+      }
+      return res.status(500).json({
+        success: false,
+        error: { message: error.message, code: 'DATABASE_ERROR' },
+      });
+    }
+    return res.json({ success: true, data: { unread_count: count ?? 0 } });
+  } catch (err) {
+    console.error('[me/notifications/unread-count]', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: err?.message || 'Erreur serveur', code: 'INTERNAL_ERROR' },
+    });
+  }
+});
+
+/** POST /api/v1/me/notifications/read-all — body: { reference_client } */
+app.post('/api/v1/me/notifications/read-all', async (req, res) => {
+  try {
+    const resolved = await resolveClientIdByReference(req.body?.reference_client);
+    if (resolved.error) {
+      return res.status(resolved.statusCode).json({
+        success: false,
+        error: { message: resolved.error, code: resolved.code },
+      });
+    }
+    const { error } = await supabase
+      .from('notifications_client')
+      .update({ lu: true })
+      .eq('client_id', resolved.clientId)
+      .eq('lu', false);
+    if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.json({ success: true, data: { marked: true } });
+      }
+      return res.status(500).json({
+        success: false,
+        error: { message: error.message, code: 'DATABASE_ERROR' },
+      });
+    }
+    return res.json({ success: true, data: { marked: true } });
+  } catch (err) {
+    console.error('[me/notifications/read-all]', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: err?.message || 'Erreur serveur', code: 'INTERNAL_ERROR' },
+    });
+  }
+});
+
+/** PATCH /api/v1/me/notifications/:id/read — body: { reference_client } */
+app.patch('/api/v1/me/notifications/:id/read', async (req, res) => {
+  try {
+    const resolved = await resolveClientIdByReference(req.body?.reference_client);
+    if (resolved.error) {
+      return res.status(resolved.statusCode).json({
+        success: false,
+        error: { message: resolved.error, code: resolved.code },
+      });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) {
+      return res.status(422).json({
+        success: false,
+        error: { message: 'id notification requis', code: 'VALIDATION_ERROR' },
+      });
+    }
+    const { data, error } = await supabase
+      .from('notifications_client')
+      .update({ lu: true })
+      .eq('id', id)
+      .eq('client_id', resolved.clientId)
+      .select('id')
+      .maybeSingle();
+    if (error) {
+      if (isMissingTableError(error.message)) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Notification introuvable', code: 'NOT_FOUND' },
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        error: { message: error.message, code: 'DATABASE_ERROR' },
+      });
+    }
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Notification introuvable', code: 'NOT_FOUND' },
+      });
+    }
+    return res.json({ success: true, data: { marked: true } });
+  } catch (err) {
+    console.error('[me/notifications/:id/read]', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: err?.message || 'Erreur serveur', code: 'INTERNAL_ERROR' },
+    });
+  }
+});
+
+function normalizedAccountLoose(s) {
+  return String(s || '')
+    .replace(/[\s\-_/.,;:]+/g, '')
+    .toUpperCase();
+}
+
+async function resolveClientLieIdFromCompte(compteIdentifiant) {
+  const raw = String(compteIdentifiant || '').trim();
+  if (!raw) return null;
+  const { data: exact } = await supabase
+    .from('comptes_bancaires')
+    .select('client_id, numero_compte')
+    .eq('numero_compte', raw)
+    .maybeSingle();
+  if (exact?.client_id) return exact.client_id;
+
+  const key = normalizedAccountLoose(raw);
+  const { data, error } = await supabase
+    .from('comptes_bancaires')
+    .select('client_id, numero_compte')
+    .limit(5000);
+  if (error || !data) return null;
+  const hit = data.find((c) => normalizedAccountLoose(c.numero_compte) === key);
+  return hit?.client_id ?? null;
+}
+
+/** POST /api/v1/beneficiaires — crée un bénéficiaire (banque ou mobile money) */
+app.post('/api/v1/beneficiaires', async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const mode = String(body.mode || '').trim();
+    if (mode !== 'compte_bancaire' && mode !== 'mobile_money') {
+      return res.status(422).json({
+        success: false,
+        error: { message: 'mode doit être compte_bancaire ou mobile_money', code: 'VALIDATION_ERROR' },
+      });
+    }
+
+    let client_lie_id = null;
+    if (body.reference_client_lie) {
+      const resolved = await resolveClientIdByReference(body.reference_client_lie);
+      if (resolved.error) {
+        return res.status(resolved.statusCode === 404 ? 404 : resolved.statusCode).json({
+          success: false,
+          error: { message: resolved.error, code: resolved.code },
+        });
+      }
+      client_lie_id = resolved.clientId;
+    }
+
+    let row;
+    if (mode === 'compte_bancaire') {
+      const compte = String(body.compte_identifiant || '').trim();
+      if (!compte) {
+        return res.status(422).json({
+          success: false,
+          error: { message: 'compte_identifiant requis', code: 'VALIDATION_ERROR' },
+        });
+      }
+      if (!client_lie_id) {
+        client_lie_id = await resolveClientLieIdFromCompte(compte);
+      }
+      row = {
+        mode,
+        compte_identifiant: compte,
+        banque_code: body.banque_code ? String(body.banque_code).trim() : null,
+        titulaire_compte: body.titulaire_compte ? String(body.titulaire_compte).trim() : null,
+        telephone: null,
+        operateur_mobile: null,
+        client_lie_id,
+      };
+    } else {
+      const telephone = String(body.telephone || '').trim();
+      if (!telephone) {
+        return res.status(422).json({
+          success: false,
+          error: { message: 'telephone requis', code: 'VALIDATION_ERROR' },
+        });
+      }
+      row = {
+        mode,
+        compte_identifiant: null,
+        banque_code: null,
+        titulaire_compte: null,
+        telephone,
+        operateur_mobile: body.operateur_mobile ? String(body.operateur_mobile).trim() : null,
+        client_lie_id,
+      };
+    }
+
+    const { data, error } = await supabase.from('beneficiaires').insert(row).select('*').single();
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        error: { message: error.message, code: 'DATABASE_ERROR' },
+      });
+    }
+    return res.status(201).json({ success: true, data });
+  } catch (err) {
+    console.error('[beneficiaires]', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: err?.message || 'Erreur serveur', code: 'INTERNAL_ERROR' },
+    });
+  }
+});
+
 /** JSON peut envoyer des nombres en string ; PostgREST attend des nombres pour double precision. */
 function parseCoord(raw) {
   if (raw == null || raw === '') return null;
@@ -375,6 +920,59 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
       source_environnement: sourceEnv,
     };
 
+    // Scoring M1 (joblib) + M2/M3 (heuristiques session / comportement)
+    const m1Features = buildM1TransactionFeatures(body, meta, te, clientRow);
+    const m1Result = runM1PythonPredict(m1Features);
+    const m1Proba = m1Result.proba_fraude;
+    const m2 = scoreM2Session(m1Features);
+    const m3 = scoreM3Behavior(m1Features);
+    const combined = combineScores(m1Proba, m2, m3);
+    const decision = combined.decision;
+    const reasonCodes = [
+      ...combined.reason_codes,
+      ...(m1Result.fallback ? ['m1_fallback'] : []),
+    ];
+
+    let creditCompteId = null;
+    if (body.beneficiaire_id) {
+      const resolvedCredit = await resolveCreditCompteIdForBeneficiaire(
+        body.beneficiaire_id,
+        clientRow.id,
+      );
+      if (!resolvedCredit.skipped && resolvedCredit.creditCompteId) {
+        creditCompteId = resolvedCredit.creditCompteId;
+      } else if (resolvedCredit.reason === 'SELF_TRANSFER') {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Virement vers soi-même interdit', code: 'SELF_TRANSFER' },
+        });
+      }
+    }
+
+    const { data: compteSoldeRow, error: soldeErr } = await supabase
+      .from('comptes_bancaires')
+      .select('id, solde_disponible, numero_compte, libelle')
+      .eq('id', compteRow.id)
+      .maybeSingle();
+    if (soldeErr) {
+      return res.status(500).json({
+        success: false,
+        error: { message: soldeErr.message, code: 'DATABASE_ERROR' },
+      });
+    }
+    const soldeActuel =
+      compteSoldeRow?.solde_disponible != null ? Number(compteSoldeRow.solde_disponible) : null;
+
+    if (decision === 'allow' && soldeActuel != null && montant > soldeActuel) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Solde insuffisant (${soldeActuel} < ${montant})`,
+          code: 'INSUFFICIENT_FUNDS',
+        },
+      });
+    }
+
     const { data: inserted, error: insErr } = await supabase
       .from('transactions')
       .insert(row)
@@ -397,22 +995,20 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
     }
 
     const txId = inserted?.id;
-    const m1Features = buildM1TransactionFeatures(body, meta, te, clientRow);
-    const m1Result = runM1PythonPredict(m1Features);
-    const m1Proba = m1Result.proba_fraude;
-    const decision =
-      m1Proba >= 0.5 ? 'challenge' : 'allow';
+    let senderSoldeApres = soldeActuel;
+    let receiverSoldeApres = null;
+    let balancesMoved = false;
 
     if (txId) {
       const { error: scoreErr } = await supabase.from('scores_evaluation').upsert(
         {
           transaction_id: txId,
           score_modele_transaction: m1Proba,
-          score_modele_session: null,
-          score_modele_comportement: null,
-          score_combine: m1Proba,
+          score_modele_session: m2.score,
+          score_modele_comportement: m3.score,
+          score_combine: combined.score_combined,
           decision,
-          texte_motifs: m1Result.fallback ? 'M1: prédiction de secours (Python/modèle indisponible)' : null,
+          texte_motifs: reasonCodes.length ? JSON.stringify(reasonCodes) : null,
         },
         { onConflict: 'transaction_id' },
       );
@@ -421,24 +1017,99 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
       }
     }
 
+    if (decision === 'allow' && creditCompteId && soldeActuel != null) {
+      senderSoldeApres = Math.max(0, soldeActuel - montant);
+      const { error: debitErr } = await supabase
+        .from('comptes_bancaires')
+        .update({ solde_disponible: senderSoldeApres })
+        .eq('id', compteRow.id);
+      if (debitErr) {
+        console.error('[transactions/evaluate] debit', debitErr.message);
+        return res.status(500).json({
+          success: false,
+          error: { message: 'Échec débit compte', code: 'DEBIT_FAILED' },
+        });
+      }
+
+      const { data: creditRow } = await supabase
+        .from('comptes_bancaires')
+        .select('solde_disponible')
+        .eq('id', creditCompteId)
+        .maybeSingle();
+      if (creditRow && creditRow.solde_disponible != null) {
+        receiverSoldeApres = Number(creditRow.solde_disponible) + montant;
+        const { error: creditErr } = await supabase
+          .from('comptes_bancaires')
+          .update({ solde_disponible: receiverSoldeApres })
+          .eq('id', creditCompteId);
+        if (creditErr) {
+          console.error('[transactions/evaluate] credit', creditErr.message);
+          await supabase
+            .from('comptes_bancaires')
+            .update({ solde_disponible: soldeActuel })
+            .eq('id', compteRow.id);
+          return res.status(500).json({
+            success: false,
+            error: { message: 'Échec crédit compte destinataire', code: 'CREDIT_FAILED' },
+          });
+        }
+      }
+      balancesMoved = true;
+
+      try {
+        const notifResult = await createTransferNotificationsAfterAllow({
+          beneficiaireId: body.beneficiaire_id,
+          creditCompteId,
+          senderClientId: clientRow.id,
+          senderNom: clientRow.nom_complet || clientRow.reference_client,
+          senderCompteId: compteRow.id,
+          senderCompteNumero: compteSoldeRow?.numero_compte ?? null,
+          senderCompteLibelle: compteSoldeRow?.libelle ?? null,
+          senderSoldeApres: await sumSoldesClient(clientRow.id),
+          receiverSoldeApres: null,
+          numeroTransaction: inserted?.numero_transaction ?? numero,
+          montant,
+          devise,
+          dateIso: row.date_transaction,
+        });
+        if (notifResult?.skipped) {
+          console.warn('[transactions/evaluate] notifications skipped:', notifResult.reason);
+        } else if (notifResult?.error) {
+          console.warn('[transactions/evaluate] notifications:', notifResult.error);
+        }
+      } catch (notifErr) {
+        console.warn(
+          '[transactions/evaluate] notifications exception:',
+          notifErr instanceof Error ? notifErr.message : notifErr,
+        );
+      }
+    } else if (decision === 'allow' && !creditCompteId) {
+      console.warn('[transactions/evaluate] allow sans creditCompteId — pas de mouvement de solde');
+    }
+
     return res.json({
       success: true,
       data: {
         scoring: {
           score_m1_transaction: m1Proba,
-          score_m2_session: null,
-          score_m3_behavior: null,
-          score_combined: m1Proba,
+          score_m2_session: m2.score,
+          score_m3_behavior: m3.score,
+          score_combined: combined.score_combined,
           decision,
-          reason_codes: m1Result.fallback ? ['m1_fallback'] : [],
+          reason_codes: reasonCodes,
           m1_model: m1Result.model ?? null,
           m1_fallback: m1Result.fallback,
           m1_label: m1Result.label ?? null,
+          m2_model: m2.model,
+          m3_model: m3.model,
         },
         persistence: {
           status: 'persisted',
           transaction_id: txId,
           numero_transaction: inserted?.numero_transaction ?? numero,
+          balances_moved: balancesMoved,
+          sender_solde_apres: senderSoldeApres,
+          receiver_solde_apres: receiverSoldeApres,
         },
       },
     });
@@ -450,6 +1121,216 @@ app.post('/api/v1/transactions/evaluate', async (req, res) => {
     });
   }
 });
+
+function formatMontantNotif(m, devise) {
+  const n = typeof m === 'number' ? m : Number(m);
+  const d = devise || 'CDF';
+  const nf = new Intl.NumberFormat('fr-CD', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  return `${nf.format(Number.isFinite(n) ? n : 0)} ${d}`;
+}
+
+async function fetchCompteAvecClientNotif(compteId) {
+  if (!compteId) return null;
+  const { data: row, error } = await supabase
+    .from('comptes_bancaires')
+    .select('id, numero_compte, libelle, devise_compte, client_id, solde_disponible')
+    .eq('id', compteId)
+    .maybeSingle();
+  if (error || !row) return null;
+  const { data: cl } = await supabase
+    .from('clients')
+    .select('id, nom_complet, reference_client')
+    .eq('id', row.client_id)
+    .maybeSingle();
+  return {
+    ...row,
+    nom_complet: cl?.nom_complet ?? null,
+    reference_client: cl?.reference_client ?? null,
+  };
+}
+
+async function sumSoldesClient(clientId) {
+  const { data } = await supabase
+    .from('comptes_bancaires')
+    .select('solde_disponible')
+    .eq('client_id', clientId);
+  return (data || []).reduce((acc, c) => acc + (Number(c.solde_disponible) || 0), 0);
+}
+
+async function resolveCreditCompteIdForBeneficiaire(beneficiaireId, excludeClientId) {
+  const { data: ben, error } = await supabase
+    .from('beneficiaires')
+    .select('id, mode, compte_identifiant, telephone, client_lie_id')
+    .eq('id', beneficiaireId)
+    .maybeSingle();
+  if (error || !ben) return { skipped: true, reason: 'BENEFICIAIRE_NOT_FOUND' };
+
+  if (ben.client_lie_id) {
+    if (String(ben.client_lie_id) === String(excludeClientId)) {
+      return { skipped: true, reason: 'SELF_TRANSFER' };
+    }
+    const { data: comptes } = await supabase
+      .from('comptes_bancaires')
+      .select('id, est_compte_principal')
+      .eq('client_id', ben.client_lie_id)
+      .order('est_compte_principal', { ascending: false })
+      .limit(5);
+    const pick = (comptes || []).find((c) => c.est_compte_principal) || (comptes || [])[0];
+    if (!pick) return { skipped: true, reason: 'NO_COMPTE_RECEIVER' };
+    return { creditCompteId: pick.id };
+  }
+
+  if (ben.mode === 'compte_bancaire' && ben.compte_identifiant) {
+    const raw = String(ben.compte_identifiant).trim();
+    const { data: exact } = await supabase
+      .from('comptes_bancaires')
+      .select('id, client_id, numero_compte')
+      .eq('numero_compte', raw)
+      .maybeSingle();
+    let hit = exact;
+    if (!hit) {
+      const key = normalizedAccountLoose(raw);
+      const { data: comptes } = await supabase
+        .from('comptes_bancaires')
+        .select('id, client_id, numero_compte')
+        .limit(5000);
+      hit = (comptes || []).find(
+        (c) => c.numero_compte && normalizedAccountLoose(c.numero_compte) === key,
+      );
+    }
+    if (!hit) return { skipped: true, reason: 'COMPTE_DEST_NOT_FOUND' };
+    if (String(hit.client_id) === String(excludeClientId)) {
+      return { skipped: true, reason: 'SELF_TRANSFER' };
+    }
+    return { creditCompteId: hit.id };
+  }
+
+  if (ben.mode === 'mobile_money' && ben.telephone) {
+    const digits = String(ben.telephone).replace(/\D/g, '');
+    const canon =
+      digits.length === 12 && digits.startsWith('243')
+        ? `0${digits.slice(3)}`
+        : digits.length === 9
+          ? `0${digits}`
+          : digits.length === 10
+            ? digits
+            : null;
+    if (canon) {
+      const { data: clients } = await supabase
+        .from('clients')
+        .select('id, telephone')
+        .not('telephone', 'is', null)
+        .limit(500);
+      const found = (clients || []).find((c) => {
+        const d = String(c.telephone || '').replace(/\D/g, '');
+        const cCanon =
+          d.length === 12 && d.startsWith('243')
+            ? `0${d.slice(3)}`
+            : d.length === 9
+              ? `0${d}`
+              : d;
+        return cCanon === canon;
+      });
+      if (found) {
+        if (String(found.id) === String(excludeClientId)) {
+          return { skipped: true, reason: 'SELF_TRANSFER' };
+        }
+        const { data: comptes } = await supabase
+          .from('comptes_bancaires')
+          .select('id, est_compte_principal')
+          .eq('client_id', found.id)
+          .limit(5);
+        const pick = (comptes || []).find((c) => c.est_compte_principal) || (comptes || [])[0];
+        if (pick) return { creditCompteId: pick.id };
+      }
+    }
+  }
+
+  return { skipped: true, reason: 'CANNOT_RESOLVE_CREDIT_COMPTE' };
+}
+
+async function createTransferNotificationsAfterAllow({
+  beneficiaireId,
+  creditCompteId: creditCompteIdArg,
+  senderClientId,
+  senderNom,
+  senderCompteId,
+  senderCompteNumero,
+  senderCompteLibelle,
+  senderSoldeApres: senderSoldeArg,
+  receiverSoldeApres: receiverSoldeArg,
+  numeroTransaction,
+  montant,
+  devise,
+  dateIso,
+}) {
+  let creditCompteId = creditCompteIdArg;
+  if (!creditCompteId && beneficiaireId) {
+    const resolved = await resolveCreditCompteIdForBeneficiaire(beneficiaireId, senderClientId);
+    if (resolved.skipped) return resolved;
+    creditCompteId = resolved.creditCompteId;
+  }
+  if (!creditCompteId) return { skipped: true, reason: 'NO_CREDIT_COMPTE' };
+
+  const sender = await fetchCompteAvecClientNotif(senderCompteId);
+  const receiver = await fetchCompteAvecClientNotif(creditCompteId);
+  if (!sender || !receiver || !receiver.client_id) {
+    return { skipped: true, reason: 'COMPTE_LOOKUP_FAILED' };
+  }
+  if (String(receiver.client_id) === String(senderClientId)) {
+    return { skipped: true, reason: 'SELF_TRANSFER' };
+  }
+
+  const deviseEff = devise || receiver.devise_compte || 'CDF';
+  const senderSoldeApres =
+    senderSoldeArg != null ? senderSoldeArg : await sumSoldesClient(senderClientId);
+  const receiverSoldeApres =
+    receiverSoldeArg != null ? receiverSoldeArg : await sumSoldesClient(receiver.client_id);
+
+  const payloadSender = {
+    titre: 'Virement envoyé',
+    numero_transaction: numeroTransaction,
+    montant,
+    devise: deviseEff,
+    montant_libelle: formatMontantNotif(montant, deviseEff),
+    date_iso: dateIso,
+    contrepartie_nom: receiver.nom_complet || receiver.reference_client || 'Destinataire',
+    contrepartie_compte: receiver.numero_compte,
+    mon_compte_numero: senderCompteNumero || sender.numero_compte,
+    mon_compte_libelle: senderCompteLibelle || sender.libelle,
+    solde_total_apres: senderSoldeApres,
+    solde_total_libelle: formatMontantNotif(senderSoldeApres, deviseEff),
+  };
+  const payloadReceiver = {
+    titre: 'Virement reçu',
+    numero_transaction: numeroTransaction,
+    montant,
+    devise: deviseEff,
+    montant_libelle: formatMontantNotif(montant, deviseEff),
+    date_iso: dateIso,
+    contrepartie_nom: senderNom,
+    contrepartie_compte: senderCompteNumero || sender.numero_compte,
+    mon_compte_numero: receiver.numero_compte,
+    mon_compte_libelle: receiver.libelle,
+    solde_total_apres: receiverSoldeApres,
+    solde_total_libelle: formatMontantNotif(receiverSoldeApres, deviseEff),
+  };
+
+  const { error } = await supabase.from('notifications_client').insert([
+    { client_id: senderClientId, kind: 'transfer_sent', lu: false, payload: payloadSender },
+    {
+      client_id: receiver.client_id,
+      kind: 'transfer_received',
+      lu: false,
+      payload: payloadReceiver,
+    },
+  ]);
+  if (error) return { error: error.message };
+  return { inserted: 2 };
+}
 
 /** Échappement basique pour motifs ILIKE PostgREST. */
 function escapeIlike(s) {
@@ -601,9 +1482,10 @@ function mapAlertRow(row) {
 }
 
 /**
- * Liste d’alertes (table `public.alerts` si elle existe).
- * Sans table ou en cas d’erreur : liste vide et stats à zéro.
+ * Liste d’alertes : table `public.alerts` si elle existe,
+ * sinon dérivée des transactions à décision challenge / deny / block.
  */
+let alertsTableMissing = false;
 app.get('/api/v1/admin/alerts', async (_req, res) => {
   const empty = {
     items: [],
@@ -611,60 +1493,91 @@ app.get('/api/v1/admin/alerts', async (_req, res) => {
     stats: { pending: 0, confirmedFraud: 0, falsePositives: 0 },
   };
 
-  let data;
-  let error;
-  let count;
-  ({ data, error, count } = await supabase
-    .from('alerts')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .limit(100));
-  if (error) {
-    ({ data, error, count } = await supabase.from('alerts').select('*', { count: 'exact' }).limit(100));
+  if (!alertsTableMissing) {
+    const { data, error, count } = await supabase
+      .from('alerts')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (!error) {
+      const rows = data ?? [];
+      const total = count ?? rows.length;
+      const items = rows.map(mapAlertRow);
+      let pending = 0;
+      let confirmedFraud = 0;
+      let falsePositives = 0;
+      const hasStatus = rows.some((r) => r.status != null || r.statut != null || r.type != null);
+      if (rows.length > 0 && hasStatus) {
+        for (const r of rows) {
+          const s = String(r.status ?? r.statut ?? r.type ?? '').toLowerCase();
+          if (
+            (s.includes('confirm') && s.includes('fraud')) ||
+            s.includes('fraude_confirm') ||
+            s === 'confirmed_fraud'
+          ) {
+            confirmedFraud++;
+          } else if (s.includes('false') || s.includes('faux') || s === 'false_positive') {
+            falsePositives++;
+          } else {
+            pending++;
+          }
+        }
+      } else {
+        pending = total;
+      }
+      return res.json({
+        success: true,
+        data: { items, total, stats: { pending, confirmedFraud, falsePositives } },
+      });
+    }
+    alertsTableMissing = true;
+    console.warn('[admin/alerts] table absente — fallback scores_evaluation (challenge)');
   }
-  if (error) {
-    console.warn('[admin/alerts]', error.message);
+
+  // Fallback : transactions scorées challenge / deny / block
+  const { data: scores, error: sErr } = await supabase
+    .from('scores_evaluation')
+    .select(
+      'transaction_id, decision, score_combine, score_modele_transaction, date_calcul, transactions(id, numero_transaction, montant, devise, date_transaction, reference_beneficiaire, client_id)',
+    )
+    .or('decision.ilike.%challenge%,decision.ilike.%deny%,decision.ilike.%block%')
+    .order('date_calcul', { ascending: false })
+    .limit(100);
+
+  if (sErr) {
+    console.warn('[admin/alerts] fallback:', sErr.message);
     return res.json({ success: true, data: empty });
   }
 
-  const rows = data ?? [];
-  const total = count ?? rows.length;
-  const items = rows.map(mapAlertRow);
-
-  let pending = 0;
-  let confirmedFraud = 0;
-  let falsePositives = 0;
-  const hasStatus = rows.some((r) => r.status != null || r.statut != null || r.type != null);
-  if (rows.length > 0 && hasStatus) {
-    for (const r of rows) {
-      const s = String(r.status ?? r.statut ?? r.type ?? '').toLowerCase();
-      if ((s.includes('confirm') && s.includes('fraud')) || s.includes('fraude_confirm') || s === 'confirmed_fraud') {
-        confirmedFraud++;
-      } else if (s.includes('false') || s.includes('faux') || s === 'false_positive') {
-        falsePositives++;
-      } else {
-        pending++;
-      }
-    }
-  }
+  const items = (scores || []).map((s) => {
+    const tx = s.transactions || {};
+    return {
+      id: s.transaction_id,
+      status: 'pending',
+      decision: s.decision,
+      score: s.score_combine ?? s.score_modele_transaction,
+      numero_transaction: tx.numero_transaction,
+      montant: tx.montant,
+      devise: tx.devise,
+      date: tx.date_transaction || s.date_calcul,
+      reference_beneficiaire: tx.reference_beneficiaire,
+      created_at: s.date_calcul,
+    };
+  });
 
   return res.json({
     success: true,
     data: {
       items,
-      total,
-      stats: {
-        pending,
-        confirmedFraud,
-        falsePositives,
-      },
+      total: items.length,
+      stats: { pending: items.length, confirmedFraud: 0, falsePositives: 0 },
     },
   });
 });
 
 const server = app.listen(PORT, () => {
   console.log(
-    `Mokengeli backend http://localhost:${PORT} (POST /api/v1/transactions/evaluate, GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
+    `Mokengeli backend http://localhost:${PORT} (POST /api/v1/client/login, GET /api/v1/me, POST /api/v1/transactions/evaluate, GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
   );
   console.log('[cors] Access-Control-Allow-Origin=*');
 });

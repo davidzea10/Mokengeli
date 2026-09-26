@@ -44,7 +44,7 @@ export function ModelScoreStrip({
         >
           <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{card.title}</p>
           <p className="mt-1 text-xs text-neutral-500">{card.subtitle}</p>
-          <p className="mt-3 text-2xl font-bold tabular-nums text-rb-black">{card.value}</p>
+          <p className="mt-3 text-2xl font-bold tabular-nums text-mk-ink">{card.value}</p>
         </div>
       ))}
     </div>

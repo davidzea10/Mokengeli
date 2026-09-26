@@ -23,12 +23,12 @@ export function RiskChart({ data, summary }: RiskChartProps) {
     <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
         <div className="min-w-0">
-          <h3 className="text-base sm:text-lg font-semibold text-rb-black">Analyse des risques</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-mk-ink">Analyse des risques</h3>
           <p className="text-sm text-neutral-500">Tendance sur les 7 derniers jours</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-rb-yellow rounded-full shrink-0" />
+            <span className="w-3 h-3 bg-mk-blue rounded-full shrink-0" />
             <span className="text-sm text-neutral-600">Transactions</span>
           </div>
           <div className="flex items-center gap-2">
@@ -44,7 +44,7 @@ export function RiskChart({ data, summary }: RiskChartProps) {
             <div key={index} className="flex-1 flex flex-col items-center gap-2">
               <div className="w-full flex flex-col gap-1">
                 <div 
-                  className="w-full bg-rb-yellow rounded-t-md transition-all duration-500 hover:bg-rb-yellow-dark"
+                  className="w-full bg-mk-blue rounded-t-md transition-all duration-500 hover:bg-mk-blue-dark"
                   style={{ height: `${(item.value / maxValue) * 200}px` }}
                 />
                 <div 
@@ -59,25 +59,25 @@ export function RiskChart({ data, summary }: RiskChartProps) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 pt-6 border-t border-neutral-200">
-        <div className="text-center rounded-lg bg-rb-page py-3 px-2">
-          <p className="text-xl sm:text-2xl font-bold text-rb-black tabular-nums">
+        <div className="text-center rounded-lg bg-mk-page py-3 px-2">
+          <p className="text-xl sm:text-2xl font-bold text-mk-ink tabular-nums">
             {summary != null ? summary.total.toLocaleString('fr-FR') : '—'}
           </p>
           <p className="text-xs text-neutral-500">Total</p>
         </div>
-        <div className="text-center rounded-lg bg-rb-page py-3 px-2">
+        <div className="text-center rounded-lg bg-mk-page py-3 px-2">
           <p className="text-xl sm:text-2xl font-bold text-emerald-600 tabular-nums">
             {summary != null ? formatPct(summary.validatedPct) : '—'}
           </p>
           <p className="text-xs text-neutral-500">Validées</p>
         </div>
-        <div className="text-center rounded-lg bg-rb-page py-3 px-2">
-          <p className="text-xl sm:text-2xl font-bold text-orange-600 tabular-nums">
+        <div className="text-center rounded-lg bg-mk-page py-3 px-2">
+          <p className="text-xl sm:text-2xl font-bold text-sky-600 tabular-nums">
             {summary != null ? formatPct(summary.suspectPct) : '—'}
           </p>
           <p className="text-xs text-neutral-500">Suspectes</p>
         </div>
-        <div className="text-center rounded-lg bg-rb-page py-3 px-2">
+        <div className="text-center rounded-lg bg-mk-page py-3 px-2">
           <p className="text-xl sm:text-2xl font-bold text-red-600 tabular-nums">
             {summary != null ? formatPct(summary.fraudPct) : '—'}
           </p>

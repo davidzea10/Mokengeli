@@ -1,5 +1,5 @@
 /**
- * Vue par défaut centrée sur la RDC (contexte opérationnel RawBank / Mokengeli).
+ * Vue par défaut centrée sur la RDC (contexte opérationnel MOKENGELI / Mokengeli).
  * Bounding box approximative du territoire pour encadrer les vues « globales » nationales.
  */
 export const RDC_INITIAL_VIEW = {

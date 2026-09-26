@@ -52,7 +52,7 @@ export function CardsPage() {
         {flat.map(({ carte, compteLabel, numeroCompte }) => (
           <article
             key={carte.carte_id}
-            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rb-black via-rb-black-muted to-gray-900 text-white p-5 sm:p-6 shadow-xl ring-1 ring-white/10"
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-mk-ink via-mk-ink-muted to-gray-900 text-white p-5 sm:p-6 shadow-xl ring-1 ring-white/10"
           >
             <div className="absolute top-3 right-3 opacity-20">
               <svg className="w-16 h-16" fill="currentColor" viewBox="0 0 24 24">

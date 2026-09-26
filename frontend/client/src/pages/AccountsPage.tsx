@@ -31,13 +31,13 @@ export function AccountsPage() {
         <article
           key={c.compte_id}
           className={`rounded-2xl border p-5 shadow-sm ${
-            c.est_compte_principal ? 'border-rb-yellow bg-gradient-to-br from-white to-amber-50/40' : 'border-gray-200 bg-white'
+            c.est_compte_principal ? 'border-mk-blue bg-gradient-to-br from-white to-sky-50/50' : 'border-gray-200 bg-white'
           }`}
         >
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               {c.est_compte_principal && (
-                <span className="inline-block text-[10px] uppercase tracking-wide font-semibold text-rb-black bg-rb-yellow px-2 py-0.5 rounded-full mb-2">
+                <span className="inline-block text-[10px] uppercase tracking-wide font-semibold text-mk-ink bg-mk-blue text-white px-2 py-0.5 rounded-full mb-2">
                   Compte principal
                 </span>
               )}

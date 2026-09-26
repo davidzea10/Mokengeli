@@ -11,7 +11,7 @@ export function StatsCard({ title, value, change, changeLabel, icon, trend = 'ne
   const trendColors = {
     up: 'text-emerald-600 bg-emerald-50',
     down: 'text-red-600 bg-red-50',
-    neutral: 'text-neutral-600 bg-rb-page',
+    neutral: 'text-neutral-600 bg-mk-page',
   };
 
   const trendIcons = {
@@ -25,7 +25,7 @@ export function StatsCard({ title, value, change, changeLabel, icon, trend = 'ne
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-neutral-500 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-rb-black">{value}</p>
+          <p className="text-3xl font-bold text-mk-ink">{value}</p>
           {change !== undefined && (
             <div className="flex items-center gap-2 mt-3">
               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${trendColors[trend]}`}>
@@ -38,7 +38,7 @@ export function StatsCard({ title, value, change, changeLabel, icon, trend = 'ne
             </div>
           )}
         </div>
-        <div className="w-12 h-12 rounded-xl bg-rb-yellow-muted flex items-center justify-center text-rb-yellow-dark">
+        <div className="w-12 h-12 rounded-xl bg-mk-blue-muted flex items-center justify-center text-mk-blue-dark">
           {icon}
         </div>
       </div>

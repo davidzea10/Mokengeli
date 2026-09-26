@@ -3,8 +3,8 @@ import type { AdminTransactionRow } from '../api/adminApi';
 import { canalToMode } from './getTransactionParties';
 
 /** Aligné sur le backend M1 / persistance par défaut (affichage admin si colonnes NULL). */
-const RAWBANK_GOMBE_LAT = -4.3189;
-const RAWBANK_GOMBE_LON = 15.3004;
+const MOKENGELI_GOMBE_LAT = -4.3189;
+const MOKENGELI_GOMBE_LON = 15.3004;
 
 /** Remplissage minimal pour l’UI admin (données réelles dans raw_payload / tables jointes si besoin). */
 const neutralEvent = {
@@ -373,10 +373,10 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
         jour_semaine: jourSemaine,
         type_transaction: typeTx,
         canal,
-        latitude_debit: row.latitude_debit ?? RAWBANK_GOMBE_LAT,
-        longitude_debit: row.longitude_debit ?? RAWBANK_GOMBE_LON,
-        latitude_credit: row.latitude_credit ?? RAWBANK_GOMBE_LAT,
-        longitude_credit: row.longitude_credit ?? RAWBANK_GOMBE_LON,
+        latitude_debit: row.latitude_debit ?? MOKENGELI_GOMBE_LAT,
+        longitude_debit: row.longitude_debit ?? MOKENGELI_GOMBE_LON,
+        latitude_credit: row.latitude_credit ?? MOKENGELI_GOMBE_LAT,
+        longitude_credit: row.longitude_credit ?? MOKENGELI_GOMBE_LON,
         parties: {
           expediteur: buildExpediteur(row, canal),
           destinataire: pickBeneficiary(row),

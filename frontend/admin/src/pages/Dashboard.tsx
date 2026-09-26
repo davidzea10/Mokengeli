@@ -431,11 +431,11 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
   };
 
   return (
-    <div className="flex min-h-screen min-h-[100dvh] bg-rb-page">
+    <div className="flex min-h-screen min-h-[100dvh] bg-mk-page">
       {mobileNavOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-rb-black/50 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-40 bg-mk-ink/50 backdrop-blur-[2px] lg:hidden"
           aria-label="Fermer le menu"
           onClick={() => setMobileNavOpen(false)}
         />
@@ -477,7 +477,7 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
             </div>
           )}
           {isApiConfigured() && apiLoadState === 'loading' && (
-            <div className="rounded-lg border border-rb-yellow/40 bg-rb-yellow-muted px-4 py-3 text-sm text-rb-black">
+            <div className="rounded-lg border border-mk-blue/40 bg-mk-blue-muted px-4 py-3 text-sm text-mk-ink">
               Chargement des transactions depuis l’API…
             </div>
           )}
@@ -591,12 +591,12 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
                     placeholder="Rechercher (n°, réf. bénéficiaire)…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-rb-yellow/60 focus:bg-white focus:ring-2 focus:ring-rb-yellow/30"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-mk-blue/60 focus:bg-white focus:ring-2 focus:ring-mk-blue/30"
                   />
                   <select
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
-                    className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm shadow-sm focus:border-rb-yellow/60 focus:bg-white focus:ring-2 focus:ring-rb-yellow/30 sm:min-w-[11rem]"
+                    className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm shadow-sm focus:border-mk-blue/60 focus:bg-white focus:ring-2 focus:ring-mk-blue/30 sm:min-w-[11rem]"
                   >
                     <option value="all">Tous les types</option>
                     <option value="Virement">Virement</option>
@@ -606,7 +606,7 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm shadow-sm focus:border-rb-yellow/60 focus:bg-white focus:ring-2 focus:ring-rb-yellow/30 sm:min-w-[11rem]"
+                    className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm shadow-sm focus:border-mk-blue/60 focus:bg-white focus:ring-2 focus:ring-mk-blue/30 sm:min-w-[11rem]"
                   >
                     <option value="all">Tous les statuts</option>
                     <option value="authorized">Autorisé</option>
@@ -784,7 +784,7 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
                       <p className="text-sm text-neutral-500">Aucune donnée — chargez l’API avec des transactions.</p>
                     ) : (
                       canalDistribution.map((item, i) => {
-                        const colors = ['bg-rb-yellow', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-blue-500'];
+                        const colors = ['bg-mk-blue', 'bg-green-500', 'bg-yellow-500', 'bg-cyan-500', 'bg-blue-500'];
                         return (
                           <div key={item.canal}>
                             <div className="flex justify-between text-sm mb-1">

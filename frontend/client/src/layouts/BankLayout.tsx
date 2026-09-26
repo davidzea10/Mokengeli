@@ -52,13 +52,13 @@ export function BankLayout() {
   const itemClass = ({ isActive }: { isActive: boolean }) =>
     `relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 py-1 transition-colors touch-manipulation ${
       isActive
-        ? 'text-rb-yellow'
+        ? 'text-mk-blue'
         : isDark
           ? 'text-neutral-500 hover:text-neutral-300'
           : 'text-gray-500 hover:text-gray-800'
     }`;
 
-  const shellBg = isDark ? 'bg-[#0c0c0e]' : 'bg-rb-page';
+  const shellBg = isDark ? 'bg-[#0c0c0e]' : 'bg-mk-page';
   const headerBar = isDark
     ? 'border-white/5 bg-[#0c0c0e]/95 backdrop-blur-md'
     : 'border-gray-200/90 bg-white/95 shadow-sm backdrop-blur-md';
@@ -127,8 +127,8 @@ export function BankLayout() {
                 `inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-[11px] font-medium sm:px-2.5 sm:text-xs ${
                   isActive
                     ? isDark
-                      ? 'border-rb-yellow/70 bg-rb-yellow/15 text-rb-yellow'
-                      : 'border-rb-yellow/70 bg-rb-yellow/10 text-gray-900'
+                      ? 'border-mk-blue/70 bg-mk-blue/15 text-mk-blue'
+                      : 'border-mk-blue/70 bg-mk-blue/10 text-gray-900'
                     : chip
                 }`
               }
@@ -181,7 +181,7 @@ export function BankLayout() {
             {({ isActive }) => (
               <>
                 <span
-                  className={`absolute top-0 h-0.5 w-8 rounded-full transition-opacity ${isActive ? 'bg-rb-yellow opacity-100' : 'opacity-0'}`}
+                  className={`absolute top-0 h-0.5 w-8 rounded-full transition-opacity ${isActive ? 'bg-mk-blue opacity-100' : 'opacity-0'}`}
                 />
                 <NavIcon>
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -196,7 +196,7 @@ export function BankLayout() {
             {({ isActive }) => (
               <>
                 <span
-                  className={`absolute top-0 h-0.5 w-8 rounded-full transition-opacity ${isActive ? 'bg-rb-yellow opacity-100' : 'opacity-0'}`}
+                  className={`absolute top-0 h-0.5 w-8 rounded-full transition-opacity ${isActive ? 'bg-mk-blue opacity-100' : 'opacity-0'}`}
                 />
                 <span className="relative">
                   <NavIcon>
@@ -222,7 +222,7 @@ export function BankLayout() {
             {({ isActive }) => (
               <>
                 <span
-                  className={`absolute top-0 h-0.5 w-8 rounded-full transition-opacity ${isActive ? 'bg-rb-yellow opacity-100' : 'opacity-0'}`}
+                  className={`absolute top-0 h-0.5 w-8 rounded-full transition-opacity ${isActive ? 'bg-mk-blue opacity-100' : 'opacity-0'}`}
                 />
                 <NavIcon>
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -237,12 +237,12 @@ export function BankLayout() {
             {({ isActive }) => (
               <>
                 <span
-                  className={`absolute top-0 h-0.5 w-10 rounded-full transition-opacity ${isActive ? 'bg-rb-yellow opacity-100' : 'opacity-0'}`}
+                  className={`absolute top-0 h-0.5 w-10 rounded-full transition-opacity ${isActive ? 'bg-mk-blue opacity-100' : 'opacity-0'}`}
                 />
                 <span
                   className={`mb-0.5 flex h-9 w-9 items-center justify-center rounded-2xl shadow-md transition-transform active:scale-95 sm:h-10 sm:w-10 ${
                     isActive
-                      ? 'bg-rb-yellow text-rb-black'
+                      ? 'bg-mk-blue text-mk-ink'
                       : isDark
                         ? 'bg-white/10 text-white/80'
                         : 'bg-gray-100 text-gray-700'
@@ -260,7 +260,7 @@ export function BankLayout() {
             {({ isActive }) => (
               <>
                 <span
-                  className={`absolute top-0 h-0.5 w-8 rounded-full transition-opacity ${isActive ? 'bg-rb-yellow opacity-100' : 'opacity-0'}`}
+                  className={`absolute top-0 h-0.5 w-8 rounded-full transition-opacity ${isActive ? 'bg-mk-blue opacity-100' : 'opacity-0'}`}
                 />
                 <NavIcon>
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>

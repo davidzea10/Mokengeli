@@ -8,16 +8,16 @@ const severityStyles = {
     badge: 'bg-red-100 text-red-700',
   },
   warning: {
-    bg: 'bg-orange-50',
-    border: 'border-orange-200',
-    icon: 'text-orange-600',
-    badge: 'bg-orange-100 text-orange-700',
+    bg: 'bg-sky-50',
+    border: 'border-sky-200',
+    icon: 'text-sky-600',
+    badge: 'bg-sky-100 text-sky-700',
   },
   info: {
-    bg: 'bg-rb-yellow-muted',
-    border: 'border-rb-yellow/40',
-    icon: 'text-rb-yellow-dark',
-    badge: 'bg-rb-yellow/25 text-rb-black',
+    bg: 'bg-mk-blue-muted',
+    border: 'border-mk-blue/40',
+    icon: 'text-mk-blue-dark',
+    badge: 'bg-mk-blue/25 text-mk-ink',
   },
 } as const;
 
@@ -38,7 +38,7 @@ export function AlertsPanel({ alerts, total, loading = false, error = null }: Al
     <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
       <div className="p-3 sm:p-4 border-b border-neutral-200 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <h2 className="text-base sm:text-lg font-semibold text-rb-black">Alertes en temps réel</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-mk-ink">Alertes en temps réel</h2>
           <span className="px-2 py-1 text-xs font-medium text-white bg-neutral-600 rounded-full tabular-nums">
             {total}
           </span>
@@ -69,7 +69,7 @@ export function AlertsPanel({ alerts, total, loading = false, error = null }: Al
           return (
             <div
               key={alert.id}
-              className={`p-4 hover:bg-rb-yellow-muted/40 transition-colors cursor-pointer ${styles.bg}`}
+              className={`p-4 hover:bg-mk-blue-muted/40 transition-colors cursor-pointer ${styles.bg}`}
             >
               <div className="flex items-start gap-3">
                 <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${styles.bg}`}>
@@ -112,12 +112,12 @@ export function AlertsPanel({ alerts, total, loading = false, error = null }: Al
                     </span>
                     {alert.time ? <span className="text-xs text-neutral-500">{alert.time}</span> : null}
                   </div>
-                  <h3 className="text-sm font-semibold text-rb-black">{alert.title}</h3>
+                  <h3 className="text-sm font-semibold text-mk-ink">{alert.title}</h3>
                   {alert.description ? (
                     <p className="text-sm text-neutral-600 mt-1">{alert.description}</p>
                   ) : null}
                   {alert.transactionId && (
-                    <p className="text-xs text-rb-yellow-dark mt-2 font-medium">Ref: {alert.transactionId}</p>
+                    <p className="text-xs text-mk-blue-dark mt-2 font-medium">Ref: {alert.transactionId}</p>
                   )}
                 </div>
 

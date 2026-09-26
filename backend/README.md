@@ -2,7 +2,7 @@
 
 API Node.js + Express, structure **MVC** + couche **services**.
 
-Plateforme d’intelligence artificielle prédictive anti-fraude en temps réel — Hackathon RawBank.
+Plateforme d’intelligence artificielle prédictive anti-fraude en temps réel — Mokengeli.
 
 ## Structure du dépôt
 

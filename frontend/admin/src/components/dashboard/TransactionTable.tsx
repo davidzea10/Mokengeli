@@ -63,7 +63,7 @@ export function TransactionTable({
 
   const getRiskLevel = (score: number): { label: string; color: string; bg: string } => {
     if (score >= 75) return { label: 'Critique', color: 'text-red-700', bg: 'bg-red-100' };
-    if (score >= 50) return { label: 'Élevé', color: 'text-orange-700', bg: 'bg-orange-100' };
+    if (score >= 50) return { label: 'Élevé', color: 'text-sky-700', bg: 'bg-sky-100' };
     if (score >= 25) return { label: 'Moyen', color: 'text-yellow-700', bg: 'bg-yellow-100' };
     return { label: 'Faible', color: 'text-emerald-700', bg: 'bg-emerald-100' };
   };
@@ -301,7 +301,7 @@ export function TransactionTable({
                             riskScore >= 75
                               ? 'bg-red-500'
                               : riskScore >= 50
-                                ? 'bg-orange-500'
+                                ? 'bg-sky-500'
                                 : riskScore >= 25
                                   ? 'bg-amber-400'
                                   : 'bg-emerald-500'

@@ -26,34 +26,34 @@ export function Sidebar({
 }: SidebarProps) {
   return (
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-[100dvh] max-h-screen flex-col bg-rb-black text-white transition-all duration-300 ease-out ${
+        className={`fixed left-0 top-0 z-50 flex h-[100dvh] max-h-screen flex-col bg-mk-ink text-white transition-all duration-300 ease-out ${
           collapsed ? 'lg:w-20' : 'lg:w-64'
-        } w-[min(100vw,16rem)] max-w-full border-r border-rb-black-muted/80 shadow-xl lg:shadow-none ${
+        } w-[min(100vw,16rem)] max-w-full border-r border-mk-ink-muted/80 shadow-xl lg:shadow-none ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
         aria-label="Navigation principale"
       >
         <div
-          className={`flex shrink-0 items-center gap-2 p-3 sm:p-4 border-b border-rb-black-muted ${
+          className={`flex shrink-0 items-center gap-2 p-3 sm:p-4 border-b border-mk-ink-muted ${
             collapsed ? 'justify-between lg:justify-center' : 'justify-between'
           }`}
         >
           {!collapsed && (
             <div className="flex min-w-0 items-center gap-3">
-              <div className="w-10 h-10 shrink-0 rounded-lg bg-rb-yellow flex items-center justify-center">
-                <svg className="w-6 h-6 text-rb-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-10 h-10 shrink-0 rounded-lg bg-mk-blue flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
               <div className="min-w-0">
-                <h1 className="truncate text-lg font-bold">Mokengeli</h1>
-                <p className="text-xs text-neutral-400">Anti-Fraude</p>
+                <h1 className="font-display truncate text-lg font-bold">Mokengeli</h1>
+                <p className="text-xs text-slate-400">Console anti-fraude</p>
               </div>
             </div>
           )}
           {collapsed && (
-            <div className="w-10 h-10 rounded-lg bg-rb-yellow flex items-center justify-center mx-auto lg:mx-auto">
-              <svg className="w-6 h-6 text-rb-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-10 h-10 rounded-lg bg-mk-blue flex items-center justify-center mx-auto lg:mx-auto">
+              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
             </div>
@@ -61,7 +61,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onMobileClose}
-            className="lg:hidden shrink-0 rounded-lg p-2 text-neutral-300 hover:bg-rb-black-soft hover:text-white"
+            className="lg:hidden shrink-0 rounded-lg p-2 text-neutral-300 hover:bg-mk-ink-soft hover:text-white"
             aria-label="Fermer le menu"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -80,8 +80,8 @@ export function Sidebar({
                 collapsed ? 'lg:justify-center' : ''
               } ${
                 activeTab === item.id
-                  ? 'bg-rb-yellow text-rb-black shadow-lg shadow-rb-yellow/35'
-                  : 'text-neutral-300 hover:bg-rb-black-soft hover:text-white'
+                  ? 'bg-mk-blue text-white shadow-lg shadow-mk-blue/35'
+                  : 'text-neutral-300 hover:bg-mk-ink-soft hover:text-white'
               }`}
             >
               <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -95,7 +95,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={() => onCollapsedChange(!collapsed)}
-          className="absolute bottom-4 right-4 hidden lg:flex w-8 h-8 rounded-full bg-rb-black-muted items-center justify-center hover:bg-neutral-700 transition-colors"
+          className="absolute bottom-4 right-4 hidden lg:flex w-8 h-8 rounded-full bg-mk-ink-muted items-center justify-center hover:bg-neutral-700 transition-colors"
           aria-label={collapsed ? 'Développer la barre latérale' : 'Réduire la barre latérale'}
         >
           <svg

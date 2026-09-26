@@ -1,7 +1,7 @@
 import type { ApiTransactionDocument } from './transactionPayloadEnglish';
 
 /** Sous-type de virement lorsque le destinataire est un compte bancaire. */
-export type BankFlow = 'rawbank_rawbank' | 'rawbank_autre' | 'rawbank_vers_mobile';
+export type BankFlow = 'interne' | 'autre_banque' | 'vers_mobile';
 
 export interface ClientFormLike {
   montant: string;
@@ -16,17 +16,17 @@ export interface ClientFormLike {
   /** Uniquement si beneficiary_mode === 'banque' */
   bank_flow: BankFlow;
   ben_compte_identifiant: string;
-  /** Code banque (RAWBANK, autre RDC, etc.) — dérivé du flux */
+  /** Code banque (MOKENGELI, autre RDC, etc.) — dérivé du flux */
   ben_banque_code: string;
   ben_titulaire: string;
   ben_telephone: string;
   ben_operateur: string;
 }
 
-/** Destinataire final = mobile (wallet ou virement RawBank → mobile). */
+/** Destinataire final = mobile (wallet ou virement MOKENGELI → mobile). */
 export function isMobileRecipientForm(form: ClientFormLike): boolean {
   if (form.beneficiary_mode === 'mobile_money') return true;
-  return form.beneficiary_mode === 'banque' && form.bank_flow === 'rawbank_vers_mobile';
+  return form.beneficiary_mode === 'banque' && form.bank_flow === 'vers_mobile';
 }
 
 /** Libellé court pour historique / enveloppe API */

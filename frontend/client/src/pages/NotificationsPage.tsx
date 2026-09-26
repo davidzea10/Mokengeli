@@ -69,8 +69,8 @@ export function NotificationsPage() {
   const sub = isDark ? 'text-neutral-500' : 'text-gray-500';
   const bubbleOut =
     isDark
-      ? 'bg-rb-yellow/20 border border-rb-yellow/40 text-white'
-      : 'bg-rb-yellow/15 border border-rb-yellow/50 text-gray-900';
+      ? 'bg-mk-blue/20 border border-mk-blue/40 text-white'
+      : 'bg-mk-blue/15 border border-mk-blue/50 text-gray-900';
   const bubbleIn =
     isDark
       ? 'bg-white/8 border border-white/10 text-neutral-100'
@@ -152,7 +152,7 @@ export function NotificationsPage() {
                     ) : null}
                     <span className="font-semibold">{p.titre || 'Notification'}</span>
                   </div>
-                  <p className={`mb-2 text-lg font-bold tabular-nums ${isDark ? 'text-rb-yellow' : 'text-rb-black'}`}>
+                  <p className={`mb-2 text-lg font-bold tabular-nums ${isDark ? 'text-mk-blue' : 'text-mk-ink'}`}>
                     {p.montant_libelle ?? `${p.montant ?? ''} ${p.devise ?? ''}`}
                   </p>
                   <dl className="space-y-1 text-[12px] opacity-95">

@@ -54,7 +54,7 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
                       <button
                         type="button"
                         onClick={() => onNavigateToTransaction(numero)}
-                        className="flex w-full flex-col gap-1 rounded-xl border border-transparent px-3 py-2.5 text-left text-sm transition hover:border-neutral-200 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rb-yellow"
+                        className="flex w-full flex-col gap-1 rounded-xl border border-transparent px-3 py-2.5 text-left text-sm transition hover:border-neutral-200 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mk-blue"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <span className="font-mono text-xs font-medium text-neutral-900 break-all">{numero}</span>

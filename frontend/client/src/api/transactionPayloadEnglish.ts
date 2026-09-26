@@ -16,7 +16,7 @@ export interface TransactionMetadataEn {
   /** Destinataire — banque (compte) ou mobile money (téléphone) */
   beneficiary_mode?: 'bank' | 'mobile_money';
   /** Sous-flux bancaire (RDC) lorsque le destinataire est un compte banque. */
-  bank_flow?: 'rawbank_rawbank' | 'rawbank_autre' | 'rawbank_vers_mobile';
+  bank_flow?: 'interne' | 'autre_banque' | 'vers_mobile';
   beneficiary_account_identifier?: string;
   beneficiary_bank_code?: string;
   beneficiary_account_holder?: string;
