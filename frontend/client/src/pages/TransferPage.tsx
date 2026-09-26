@@ -438,15 +438,15 @@ export function TransferPage() {
                 {transactionResult.decision === 'allow'
                   ? 'Succès'
                   : transactionResult.decision === 'challenge'
-                    ? 'En analyse'
-                    : 'Transaction refusée'}
+                    ? 'OTP envoyé'
+                    : 'Transaction bloquée'}
               </p>
               <p className={`mt-2 text-sm ${isDark ? 'text-neutral-400' : 'text-slate-600'}`}>
                 {transactionResult.decision === 'allow'
                   ? 'Votre opération a été effectuée avec succès.'
                   : transactionResult.decision === 'challenge'
-                    ? 'Votre opération est en cours d’analyse de sécurité. Aucun débit n’est confirmé pour le moment.'
-                    : 'Votre opération n’a pas pu être autorisée. Contactez le support si besoin.'}
+                    ? 'Un code OTP a été envoyé sur votre numéro de téléphone pour confirmer cette opération. Aucun débit n’est effectué tant que le code n’est pas validé.'
+                    : 'Votre opération a été bloquée (score de risque trop élevé). Contactez le support si besoin.'}
               </p>
             </div>
             <button

@@ -1,4 +1,5 @@
 import type { Transaction, TransactionRoute } from '../types';
+import { decisionFromCombinedScore } from '../utils/decisionPolicy';
 
 const CITIES = [
   { city: 'Kinshasa', lat: -4.3276, lng: 15.3136 },
@@ -51,18 +52,21 @@ function jitter(i: number, base: number, spread: number, digits = 2): number {
 
 /**
  * 10 flux démo datés du 20 septembre 2026 :
- * - 2 frauduleux (tracés en rouge)
- * - 8 normaux
+ * - 2 frauduleux (score combiné ≥ 70 % → block, tracés en rouge)
+ * - 8 normaux (allow)
  */
 export const MAP_DEMO_SEPT_20_2026: Transaction[] = Array.from({ length: 10 }, (_, i) => {
   const fraud = i === 0 || i === 1;
   const r = route(i, fraud);
   const hour = 8 + i;
   const montant = fraud ? 850_000 + i * 40_000 : 25_000 + i * 12_500;
-  const m2 = 0.08 + (i % 5) * 0.03;
-  const m3 = 0.05 + ((i + 2) % 6) * 0.025;
-  const m1 = fraud ? 0.72 + i * 0.05 : 0.02 + (i % 4) * 0.01;
+  /** Fraudes : scores élevés pour passer le seuil block (70 %). */
+  const m1 = fraud ? 0.88 + i * 0.04 : 0.02 + (i % 4) * 0.01;
+  const m2 = fraud ? 0.74 + i * 0.05 : 0.08 + (i % 5) * 0.03;
+  const m3 = fraud ? 0.7 + i * 0.04 : 0.05 + ((i + 2) % 6) * 0.025;
   const combined = (m1 + m2 + m3) / 3;
+  const decision = decisionFromCombinedScore(combined);
+  const riskPercent = Math.round(combined * 100);
 
   return {
     transaction_event: {
@@ -105,7 +109,6 @@ export const MAP_DEMO_SEPT_20_2026: Transaction[] = Array.from({ length: 10 }, (
         vpn_detecte: fraud || i % 7 === 0,
         proxy_detecte: fraud && i === 1,
       },
-      /** M2 — session / UEBA (valeurs variées, pas à zéro) */
       behavioral_biometrics_ueba: {
         duree_session_min: fraud ? jitter(i, 2.5, 6, 1) : jitter(i, 9, 18, 1),
         nb_ecrans_session: fraud ? 1 + (i % 3) : 3 + (i % 5),
@@ -115,7 +118,6 @@ export const MAP_DEMO_SEPT_20_2026: Transaction[] = Array.from({ length: 10 }, (
         entropie_souris: fraud ? jitter(i, 0.1, 0.22, 3) : jitter(i, 0.48, 0.35, 3),
         nombre_requetes_par_minute: fraud ? jitter(i, 8, 10, 1) : jitter(i, 1.5, 4.5, 1),
       },
-      /** M3 — profilage / graphe */
       engineered_features_profiling: {
         vitesse_24h: fraud ? jitter(i, 1200, 3200, 1) : jitter(i, 90, 850, 1),
         ratio_montant_median_30j: fraud ? jitter(i, 2.4, 2.2, 2) : jitter(i, 0.7, 0.85, 2),
@@ -135,17 +137,17 @@ export const MAP_DEMO_SEPT_20_2026: Transaction[] = Array.from({ length: 10 }, (
       },
     },
     target_labels: {
-      cible_fraude: fraud,
-      cible_session_anormale: fraud,
-      cible_comportement_atypique: fraud,
+      cible_fraude: decision === 'block',
+      cible_session_anormale: decision !== 'allow',
+      cible_comportement_atypique: decision === 'block',
     },
     _api: {
       id: `demo-map-2026-09-20-${i + 1}`,
-      riskPercent: Math.round(combined * 100),
+      riskPercent,
       scoreTransaction: Math.round(m1 * 1000) / 10,
       scoreSession: Math.round(m2 * 1000) / 10,
       scoreComportement: Math.round(m3 * 1000) / 10,
-      decision: fraud ? 'challenge' : 'allow',
+      decision,
     },
   };
 });

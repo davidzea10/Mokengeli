@@ -379,8 +379,8 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
 
   const blocked =
     decision === 'block' ||
-    decision === 'deny' ||
-    decision === 'challenge';
+    decision === 'deny';
+  const needsOtp = decision === 'challenge';
 
   const raw = score_combine;
   const riskPercent =
@@ -422,8 +422,8 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
     },
     target_labels: {
       cible_fraude: blocked,
-      cible_session_anormale: false,
-      cible_comportement_atypique: false,
+      cible_session_anormale: needsOtp || blocked,
+      cible_comportement_atypique: blocked,
     },
     _api: {
       id: row.id,

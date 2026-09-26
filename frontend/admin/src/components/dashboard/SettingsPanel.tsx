@@ -137,15 +137,15 @@ export function SettingsPanel() {
         <div className="space-y-4 p-4 sm:p-6">
           <PolicySlider
             label="Seuil de blocage automatique"
-            description="Au-delà de ce score combiné, la transaction est refusée sans revue manuelle."
-            hint="Recommandé : 65–80 % selon votre tolérance au risque."
+            description="Au-delà de ce score combiné (moyenne M1/M2/M3), la transaction est bloquée."
+            hint="Politique active : 70–100 % → bloquée."
             value={blockThreshold}
             onChange={setBlockThreshold}
           />
           <PolicySlider
-            label="Seuil de vérification"
-            description="Entre ce score et le seuil de blocage, une étape de vérification (OTP, agent) est exigée."
-            hint="Doit rester inférieur au seuil de blocage."
+            label="Seuil OTP (vérification)"
+            description="Entre ce score et le seuil de blocage, un OTP est envoyé au numéro du client pour confirmer."
+            hint="Politique active : 40–69 % → OTP · 0–39 % → autorisée."
             value={verifyThreshold}
             onChange={setVerifyThreshold}
           />

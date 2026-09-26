@@ -11,6 +11,11 @@ import maplibregl from 'maplibre-gl';
 import type { Transaction } from '../../types';
 import { MAP_STYLE_LIGHT, RDC_INITIAL_VIEW } from '../../constants/rdcMap';
 import { MAP_DEMO_SEPT_20_2026 } from '../../data/mapDemoSept20';
+import {
+  decisionBadgeClasses,
+  decisionFromCombinedScore,
+  decisionLabelFr,
+} from '../../utils/decisionPolicy';
 import { TransactionDetailModal } from './TransactionDetailModal';
 
 interface TransactionMapPanelProps {
@@ -149,10 +154,9 @@ export function TransactionMapPanel({ transactions }: TransactionMapPanelProps) 
       <div className="rounded-xl border border-neutral-200/90 bg-white px-4 py-3 text-sm text-neutral-600 shadow-sm">
         <p className="font-medium text-neutral-900">Carte des flux — 20 septembre 2026</p>
         <p className="mt-1 text-xs text-neutral-500">
-          10 transactions simulées (2 frauduleuses en{' '}
-          <span className="font-semibold text-red-600">rouge</span>, flux normaux en{' '}
-          <span className="font-semibold text-mk-blue">bleu</span>). Cliquez une ligne ou un point
-          pour ouvrir le détail.
+          10 transactions simulées. Décision : 0–39 % autorisée, 40–69 % OTP, 70–100 % bloquée.
+          Fraudes (≥ 70 %) en <span className="font-semibold text-red-600">rouge</span>, flux
+          autorisés en <span className="font-semibold text-mk-blue">bleu</span>. Clic = détail.
         </p>
       </div>
 
@@ -172,7 +176,9 @@ export function TransactionMapPanel({ transactions }: TransactionMapPanelProps) 
                 {displayList.map((tx, i) => {
                   const m = tx.transaction_event.metadata;
                   const fraud = isFraud(tx);
-                  const risk = tx._api?.riskPercent;
+                  const risk = tx._api?.riskPercent ?? 0;
+                  const decision =
+                    tx._api?.decision ?? decisionFromCombinedScore(risk);
                   const numero = m.numero_transaction?.trim() || '—';
                   const isOpen =
                     selected?.transaction_event.metadata.numero_transaction === numero;
@@ -184,26 +190,18 @@ export function TransactionMapPanel({ transactions }: TransactionMapPanelProps) 
                         className={`flex w-full flex-col gap-1 rounded-xl border px-3 py-2.5 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mk-blue ${
                           isOpen
                             ? 'border-mk-blue bg-sky-50 ring-1 ring-mk-blue/30'
-                            : fraud
+                            : fraud || decision === 'block'
                               ? 'border-red-200 bg-red-50/70 hover:border-red-300 hover:bg-red-50'
                               : 'border-transparent hover:border-neutral-200 hover:bg-neutral-50'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <span className="break-all font-mono text-xs font-medium text-neutral-900">{numero}</span>
-                          {fraud ? (
-                            <span className="shrink-0 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">
-                              Fraude
-                            </span>
-                          ) : risk != null ? (
-                            <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-900">
-                              {risk}%
-                            </span>
-                          ) : (
-                            <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
-                              Normal
-                            </span>
-                          )}
+                          <span
+                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${decisionBadgeClasses(decision)}`}
+                          >
+                            {decisionLabelFr(decision)}
+                          </span>
                         </div>
                         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 text-xs text-neutral-600">
                           <span className="font-medium text-neutral-800">
@@ -211,7 +209,15 @@ export function TransactionMapPanel({ transactions }: TransactionMapPanelProps) 
                           </span>
                           <span className="text-neutral-400">·</span>
                           <span>{m.canal || '—'}</span>
+                          <span className="text-neutral-400">·</span>
+                          <span className="tabular-nums font-medium text-neutral-800">{risk}%</span>
                         </div>
+                        {(fraud || decision === 'block') && (
+                          <div className="rounded-lg bg-red-100/80 px-2 py-1 text-[11px] text-red-900">
+                            Bloquée (score ≥ 70 %) — M1 {tx._api?.scoreTransaction ?? '—'} % · M2{' '}
+                            {tx._api?.scoreSession ?? '—'} % · M3 {tx._api?.scoreComportement ?? '—'} %
+                          </div>
+                        )}
                         <div className="text-[11px] text-neutral-500">{formatDate(m.date_transaction)}</div>
                       </button>
                     </li>

@@ -382,9 +382,9 @@ export function ClientSessionProvider({ children }: { children: ReactNode }) {
       case 'allow':
         return 'Succès';
       case 'block':
-        return 'Refusée';
+        return 'Transaction bloquée';
       case 'challenge':
-        return 'En analyse';
+        return 'OTP envoyé';
       default:
         return decision;
     }

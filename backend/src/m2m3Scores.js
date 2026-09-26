@@ -1,6 +1,11 @@
 /**
  * M2 (session) et M3 (comportement) — simulation démo.
  * Score aléatoire uniforme entre 1 % et 30 % (0.01 … 0.30) à chaque évaluation.
+ *
+ * Décision (moyenne M1/M2/M3, échelle 0–1) :
+ * - 0.00–0.39 → allow
+ * - 0.40–0.69 → challenge (OTP)
+ * - 0.70–1.00 → block
  */
 
 function clamp01(n) {
@@ -16,6 +21,9 @@ function randomBetween(min, max) {
 
 const SIM_MIN = 0.01; // 1 %
 const SIM_MAX = 0.3; // 30 %
+
+const THRESHOLD_OTP = 0.4; // 40 %
+const THRESHOLD_BLOCK = 0.7; // 70 %
 
 /**
  * M2 — score session simulé (1 %–30 %).
@@ -44,18 +52,27 @@ export function scoreM3Behavior(_f) {
 }
 
 /**
- * Politique combinée : moyenne M1/M2/M3, seuil 0.5 → challenge.
+ * Politique combinée : moyenne M1/M2/M3 → allow / challenge (OTP) / block.
  */
 export function combineScores(m1Proba, m2, m3) {
   const s1 = clamp01(m1Proba);
   const s2 = clamp01(m2?.score);
   const s3 = clamp01(m3?.score);
   const combined = clamp01((s1 + s2 + s3) / 3);
-  const decision = combined >= 0.5 ? 'challenge' : 'allow';
+
+  let decision = 'allow';
+  if (combined >= THRESHOLD_BLOCK) decision = 'block';
+  else if (combined >= THRESHOLD_OTP) decision = 'challenge';
+
   const reason_codes = [
-    ...(m1Proba >= 0.5 ? ['m1_fraude'] : []),
-    ...((m2?.reasons || []).slice(0, 3)),
-    ...((m3?.reasons || []).slice(0, 3)),
+    ...(s1 >= THRESHOLD_BLOCK ? ['m1_fraude'] : []),
+    ...(decision === 'challenge' ? ['otp_required'] : []),
+    ...(decision === 'block' ? ['score_combine_block'] : []),
+    ...((m2?.reasons || []).slice(0, 2)),
+    ...((m3?.reasons || []).slice(0, 2)),
   ];
+
   return { score_combined: combined, decision, reason_codes };
 }
+
+export { THRESHOLD_OTP, THRESHOLD_BLOCK };

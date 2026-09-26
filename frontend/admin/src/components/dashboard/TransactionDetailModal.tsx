@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
 import type { Transaction } from '../../types';
 import type { AdminTransactionRow } from '../../api/adminApi';
+import {
+  decisionFromCombinedScore,
+  decisionLabelFr,
+} from '../../utils/decisionPolicy';
 import { getTransactionRiskPercent } from '../../utils/transactionRiskScore';
 
 function humanizeKey(key: string): string {
@@ -63,6 +67,9 @@ function ScoresEvaluationDetails({ data }: { data: Record<string, unknown> }) {
         const label = humanizeKey(k);
         if (SCORE_PERCENT_KEYS.has(k)) {
           return <DetailRow key={k} label={label} value={formatModelPercent(v)} />;
+        }
+        if (k === 'decision') {
+          return <DetailRow key={k} label={label} value={decisionLabelFr(String(v))} />;
         }
         return <DetailRow key={k} label={label} value={formatUnknown(v)} />;
       })}
@@ -174,8 +181,6 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
   const session = row ? pickOne(row.sessions as Record<string, unknown> | Record<string, unknown>[] | null) : undefined;
   const scores = row ? pickOne(row.scores_evaluation) : undefined;
 
-  const decision = transaction._api?.decision ?? null;
-
   /** Scores DB ou fallback `_api` (M1/M2/M3 tous actifs — plus de libellé « à brancher »). */
   const scoreM1 =
     (scores as { score_modele_transaction?: unknown } | undefined)?.score_modele_transaction ??
@@ -197,6 +202,10 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
       if (parts.length === 0) return null;
       return parts.reduce((a, b) => a + b, 0) / parts.length;
     })();
+
+  const decision =
+    transaction._api?.decision ?? decisionFromCombinedScore(scoreCombined);
+  const decisionDisplay = decisionLabelFr(decision);
 
   return (
     <div
@@ -227,8 +236,14 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
                   Risque {riskScore}%
                 </span>
                 {decision && (
-                  <span className="rounded-md bg-amber-500/25 px-2 py-0.5 text-[10px] font-medium text-amber-100">
-                    {decision}
+                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
+                    decision === 'block' || decision === 'deny'
+                      ? 'bg-red-500/35 text-red-100'
+                      : decision === 'challenge'
+                        ? 'bg-amber-500/25 text-amber-100'
+                        : 'bg-emerald-500/25 text-emerald-100'
+                  }`}>
+                    {decisionDisplay}
                   </span>
                 )}
                 {transaction.target_labels.cible_fraude && (
@@ -310,7 +325,7 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
                   </p>
                   <p className="mt-1 text-xs text-slate-600">
                     Synthèse M1 + M2 + M3
-                    {decision ? ` · ${decision}` : ''}
+                    {decision ? ` · ${decisionDisplay}` : ''}
                   </p>
                 </div>
 

@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import type { Transaction } from '../../types';
 import { getTransactionRiskPercent } from '../../utils/transactionRiskScore';
 import { getTransactionParties } from '../../utils/getTransactionParties';
+import {
+  decisionBadgeClasses,
+  decisionFromCombinedScore,
+  decisionLabelFr,
+} from '../../utils/decisionPolicy';
 import { TransactionDetailModal } from './TransactionDetailModal';
 
 export interface TransactionTablePagination {
@@ -221,6 +226,9 @@ export function TransactionTable({
                   <SortIcon field="riskScore" />
                 </button>
               </th>
+              <th rowSpan={2} className="min-w-[6.5rem] align-bottom whitespace-nowrap px-3 py-3 sm:px-4">
+                Décision
+              </th>
               <th rowSpan={2} className="align-bottom whitespace-nowrap px-3 py-3 pr-4 sm:px-4">
                 Statut
               </th>
@@ -242,6 +250,8 @@ export function TransactionTable({
               const risk = getRiskLevel(riskScore);
               const meta = tx.transaction_event.metadata;
               const p = getTransactionParties(tx);
+              const decision =
+                tx._api?.decision ?? decisionFromCombinedScore(riskScore);
 
               return (
                 <tr
@@ -298,13 +308,11 @@ export function TransactionTable({
                       <div className="h-2 w-14 overflow-hidden rounded-full bg-slate-200">
                         <div
                           className={`h-full rounded-full transition-all ${
-                            riskScore >= 75
+                            riskScore >= 70
                               ? 'bg-red-500'
-                              : riskScore >= 50
-                                ? 'bg-sky-500'
-                                : riskScore >= 25
-                                  ? 'bg-amber-400'
-                                  : 'bg-emerald-500'
+                              : riskScore >= 40
+                                ? 'bg-amber-400'
+                                : 'bg-emerald-500'
                           }`}
                           style={{ width: `${riskScore}%` }}
                         />
@@ -316,11 +324,33 @@ export function TransactionTable({
                       </span>
                     </div>
                   </td>
+                  <td className="px-3 py-3 sm:px-4">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:text-xs ${decisionBadgeClasses(decision)}`}
+                      title="0–39 % autorisée · 40–69 % OTP · 70–100 % bloquée"
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          decision === 'block' || decision === 'deny'
+                            ? 'bg-red-500'
+                            : decision === 'challenge'
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                        }`}
+                      />
+                      {decisionLabelFr(decision)}
+                    </span>
+                  </td>
                   <td className="px-3 py-3 pr-4 sm:px-4">
-                    {tx.target_labels.cible_fraude ? (
+                    {tx.target_labels.cible_fraude || decision === 'block' || decision === 'deny' ? (
                       <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-800 sm:text-xs">
                         <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                         Fraude
+                      </span>
+                    ) : decision === 'challenge' ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-900 sm:text-xs">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        OTP
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 sm:text-xs">
