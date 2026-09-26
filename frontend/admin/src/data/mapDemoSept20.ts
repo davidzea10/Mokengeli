@@ -41,10 +41,18 @@ function route(i: number, fraud: boolean): TransactionRoute {
   };
 }
 
+/** Variations déterministes (pas de Math.random) pour features M2/M3. */
+function jitter(i: number, base: number, spread: number, digits = 2): number {
+  const t = ((i * 17 + 31) % 100) / 100;
+  const v = base + t * spread;
+  const p = 10 ** digits;
+  return Math.round(v * p) / p;
+}
+
 /**
  * 10 flux démo datés du 20 septembre 2026 :
  * - 2 frauduleux (tracés en rouge)
- * - 2 « focus » normaux (et 6 autres normaux) → 8 normaux au total
+ * - 8 normaux
  */
 export const MAP_DEMO_SEPT_20_2026: Transaction[] = Array.from({ length: 10 }, (_, i) => {
   const fraud = i === 0 || i === 1;
@@ -87,41 +95,43 @@ export const MAP_DEMO_SEPT_20_2026: Transaction[] = Array.from({ length: 10 }, (
         },
       },
       network_intelligence: {
-        score_reputation_ip: fraud ? 0.1 : 0.8,
-        ip_datacenter: fraud,
+        score_reputation_ip: fraud ? jitter(i, 0.12, 0.28, 3) : jitter(i, 0.62, 0.28, 3),
+        ip_datacenter: fraud && i === 0,
         ip_pays_inhabituel: fraud,
         ip_sur_liste_noire: fraud && i === 0,
       },
       anonymization_detection: {
         tor_detecte: false,
-        vpn_detecte: fraud,
-        proxy_detecte: false,
+        vpn_detecte: fraud || i % 7 === 0,
+        proxy_detecte: fraud && i === 1,
       },
+      /** M2 — session / UEBA (valeurs variées, pas à zéro) */
       behavioral_biometrics_ueba: {
-        duree_session_min: 12,
-        nb_ecrans_session: 4,
-        delai_otp_s: 8,
-        nb_echecs_login_24h: fraud ? 3 : 0,
-        vitesse_frappe: 4,
-        entropie_souris: 0.4,
-        nombre_requetes_par_minute: 5,
+        duree_session_min: fraud ? jitter(i, 2.5, 6, 1) : jitter(i, 9, 18, 1),
+        nb_ecrans_session: fraud ? 1 + (i % 3) : 3 + (i % 5),
+        delai_otp_s: fraud ? 45 + i * 28 : 14 + i * 5,
+        nb_echecs_login_24h: fraud ? 2 + (i % 3) : i % 3,
+        vitesse_frappe: fraud ? jitter(i, 72, 40, 1) : jitter(i, 32, 38, 1),
+        entropie_souris: fraud ? jitter(i, 0.1, 0.22, 3) : jitter(i, 0.48, 0.35, 3),
+        nombre_requetes_par_minute: fraud ? jitter(i, 8, 10, 1) : jitter(i, 1.5, 4.5, 1),
       },
+      /** M3 — profilage / graphe */
       engineered_features_profiling: {
-        vitesse_24h: fraud ? 12 : 1.2,
-        ratio_montant_median_30j: fraud ? 4.5 : 1.1,
-        beneficiaire_nouveau: fraud,
-        distance_km_habitude: fraud ? 800 : 12,
-        changement_appareil: fraud,
+        vitesse_24h: fraud ? jitter(i, 1200, 3200, 1) : jitter(i, 90, 850, 1),
+        ratio_montant_median_30j: fraud ? jitter(i, 2.4, 2.2, 2) : jitter(i, 0.7, 0.85, 2),
+        beneficiaire_nouveau: fraud || i % 5 === 0,
+        distance_km_habitude: fraud ? jitter(i, 120, 700, 1) : jitter(i, 4, 55, 1),
+        changement_appareil: fraud || i % 6 === 0,
       },
       relational_graph_features: {
-        degre_client: 3,
-        nb_voisins_frauduleux: fraud ? 2 : 0,
-        score_reseau: fraud ? 0.7 : 0.1,
+        degre_client: 2 + ((i * 3) % 8),
+        nb_voisins_frauduleux: fraud ? 1 + (i % 3) : i % 8 === 0 ? 1 : 0,
+        score_reseau: fraud ? jitter(i, 0.48, 0.35, 3) : jitter(i, 0.06, 0.22, 3),
       },
       security_integrity: {
-        signature_transaction_valide: true,
+        signature_transaction_valide: !fraud || i === 1,
         certificat_valide: true,
-        score_confiance_client_api: fraud ? 0.3 : 0.9,
+        score_confiance_client_api: fraud ? jitter(i, 0.22, 0.35, 3) : jitter(i, 0.68, 0.25, 3),
       },
     },
     target_labels: {

@@ -705,21 +705,7 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
 
           {activeTab === 'carte' && (
             <div className="space-y-4">
-              <TransactionMapPanel
-                transactions={remoteTransactions}
-                onNavigateToTransaction={(numero) => {
-                  setActiveTab('transactions');
-                  setSearchParams(
-                    (prev) => {
-                      const n = new URLSearchParams(prev);
-                      n.set('tab', 'transactions');
-                      n.set('tx', numero);
-                      return n;
-                    },
-                    { replace: false }
-                  );
-                }}
-              />
+              <TransactionMapPanel transactions={remoteTransactions} />
             </div>
           )}
 

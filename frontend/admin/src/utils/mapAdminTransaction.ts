@@ -6,46 +6,77 @@ import { canalToMode } from './getTransactionParties';
 const MOKENGELI_GOMBE_LAT = -4.3189;
 const MOKENGELI_GOMBE_LON = 15.3004;
 
-/** Remplissage minimal pour l’UI admin (données réelles dans raw_payload / tables jointes si besoin). */
-const neutralEvent = {
-  network_intelligence: {
-    score_reputation_ip: 0,
-    ip_datacenter: false,
-    ip_pays_inhabituel: false,
-    ip_sur_liste_noire: false,
-  },
-  anonymization_detection: {
-    tor_detecte: false,
-    vpn_detecte: false,
-    proxy_detecte: false,
-  },
-  behavioral_biometrics_ueba: {
-    duree_session_min: 0,
-    nb_ecrans_session: 0,
-    delai_otp_s: 0,
-    nb_echecs_login_24h: 0,
-    vitesse_frappe: 0,
-    entropie_souris: 0,
-    nombre_requetes_par_minute: 0,
-  },
-  engineered_features_profiling: {
-    vitesse_24h: 0,
-    ratio_montant_median_30j: 0,
-    beneficiaire_nouveau: false,
-    distance_km_habitude: 0,
-    changement_appareil: false,
-  },
-  relational_graph_features: {
-    degre_client: 0,
-    nb_voisins_frauduleux: 0,
-    score_reseau: 0,
-  },
-  security_integrity: {
-    signature_transaction_valide: false,
-    certificat_valide: false,
-    score_confiance_client_api: 0,
-  },
-};
+function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** PRNG déterministe (valeurs stables au rechargement / re-render). */
+function makeRng(seed: number) {
+  let a = seed || 1;
+  return () => {
+    a = (Math.imul(a, 1664525) + 1013904223) >>> 0;
+    return a / 4294967296;
+  };
+}
+
+function roundN(n: number, digits = 2): number {
+  const p = 10 ** digits;
+  return Math.round(n * p) / p;
+}
+
+/**
+ * Features M2 (session / UEBA) et M3 (profilage / graphe) simulées —
+ * légères variations aléatoires stables (évite le « tout à 0 » en détail).
+ */
+function buildSimulatedModelFeatures(seedKey: string, riskish: boolean) {
+  const r = makeRng(hashSeed(seedKey));
+  return {
+    network_intelligence: {
+      score_reputation_ip: roundN(riskish ? 0.12 + r() * 0.38 : 0.55 + r() * 0.4, 3),
+      ip_datacenter: riskish ? r() > 0.55 : r() > 0.92,
+      ip_pays_inhabituel: riskish ? r() > 0.5 : r() > 0.94,
+      ip_sur_liste_noire: riskish ? r() > 0.78 : false,
+    },
+    anonymization_detection: {
+      tor_detecte: riskish && r() > 0.88,
+      vpn_detecte: riskish ? r() > 0.4 : r() > 0.9,
+      proxy_detecte: riskish ? r() > 0.65 : r() > 0.95,
+    },
+    /** M2 — biométrie / session */
+    behavioral_biometrics_ueba: {
+      duree_session_min: roundN(riskish ? 2 + r() * 9 : 8 + r() * 24, 1),
+      nb_ecrans_session: Math.round(riskish ? 1 + r() * 3 : 3 + r() * 7),
+      delai_otp_s: Math.round(riskish ? 35 + r() * 110 : 10 + r() * 40),
+      nb_echecs_login_24h: Math.round(riskish ? 1 + r() * 4 : r() * 2.2),
+      vitesse_frappe: roundN(riskish ? 65 + r() * 55 : 28 + r() * 42, 1),
+      entropie_souris: roundN(riskish ? 0.08 + r() * 0.28 : 0.42 + r() * 0.45, 3),
+      nombre_requetes_par_minute: roundN(riskish ? 7 + r() * 14 : 1.2 + r() * 5.5, 1),
+    },
+    /** M3 — profilage transactionnel */
+    engineered_features_profiling: {
+      vitesse_24h: roundN(riskish ? 900 + r() * 4500 : 60 + r() * 1100, 1),
+      ratio_montant_median_30j: roundN(riskish ? 2.1 + r() * 2.8 : 0.55 + r() * 0.95, 2),
+      beneficiaire_nouveau: riskish ? r() > 0.35 : r() > 0.86,
+      distance_km_habitude: roundN(riskish ? 70 + r() * 650 : 2 + r() * 75, 1),
+      changement_appareil: riskish ? r() > 0.38 : r() > 0.88,
+    },
+    relational_graph_features: {
+      degre_client: Math.round(2 + r() * 9),
+      nb_voisins_frauduleux: riskish ? Math.round(1 + r() * 3) : r() > 0.91 ? 1 : 0,
+      score_reseau: roundN(riskish ? 0.42 + r() * 0.45 : 0.04 + r() * 0.28, 3),
+    },
+    security_integrity: {
+      signature_transaction_valide: riskish ? r() > 0.22 : true,
+      certificat_valide: riskish ? r() > 0.18 : r() > 0.04,
+      score_confiance_client_api: roundN(riskish ? 0.18 + r() * 0.42 : 0.62 + r() * 0.34, 3),
+    },
+  };
+}
 
 function pickClient(row: AdminTransactionRow) {
   const debitFromApi = row.debit_compte?.numero_compte?.trim() ?? '';
@@ -360,12 +391,17 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
       : 0;
 
   const idClientDisplay = name ? `${ref} (${name})` : ref;
+  const numeroTx = row.numero_transaction?.trim() || row.id;
+  const simulatedFeatures = buildSimulatedModelFeatures(
+    `${row.id}|${numeroTx}|m2m3`,
+    blocked,
+  );
 
   return {
     transaction_event: {
       metadata: {
         date_transaction: dateStr,
-        numero_transaction: row.numero_transaction?.trim() || row.id,
+        numero_transaction: numeroTx,
         id_client: idClientDisplay,
         montant,
         devise,
@@ -382,7 +418,7 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
           destinataire: pickBeneficiary(row),
         },
       },
-      ...neutralEvent,
+      ...simulatedFeatures,
     },
     target_labels: {
       cible_fraude: blocked,

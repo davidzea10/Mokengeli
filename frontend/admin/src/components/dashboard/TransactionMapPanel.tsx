@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Map, {
   Layer,
   Marker,
@@ -11,10 +11,12 @@ import maplibregl from 'maplibre-gl';
 import type { Transaction } from '../../types';
 import { MAP_STYLE_LIGHT, RDC_INITIAL_VIEW } from '../../constants/rdcMap';
 import { MAP_DEMO_SEPT_20_2026 } from '../../data/mapDemoSept20';
+import { TransactionDetailModal } from './TransactionDetailModal';
 
 interface TransactionMapPanelProps {
   transactions: Transaction[];
-  onNavigateToTransaction: (numero: string) => void;
+  /** Conservé pour compatibilité Dashboard (détail ouvert localement). */
+  onNavigateToTransaction?: (numero: string) => void;
 }
 
 const moneyFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
@@ -60,9 +62,11 @@ function getRoute(tx: Transaction) {
 
 /**
  * Carte des flux + 10 transactions démo du 20/09/2026 (2 fraudes en rouge).
+ * Clic liste / marqueur → détail transaction.
  */
-export function TransactionMapPanel({ transactions, onNavigateToTransaction }: TransactionMapPanelProps) {
+export function TransactionMapPanel({ transactions }: TransactionMapPanelProps) {
   const mapRef = useRef<MapRef>(null);
+  const [selected, setSelected] = useState<Transaction | null>(null);
 
   const displayList = useMemo(() => {
     const demoNums = new Set(
@@ -109,6 +113,7 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
       fraud: boolean;
       role: string;
       numero: string;
+      tx: Transaction;
     }[] = [];
     for (const tx of displayList) {
       const route = getRoute(tx);
@@ -122,6 +127,7 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
         fraud,
         role: 'Émetteur',
         numero,
+        tx,
       });
       out.push({
         key: `${numero}-r`,
@@ -130,10 +136,13 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
         fraud,
         role: 'Bénéficiaire',
         numero,
+        tx,
       });
     }
     return out;
   }, [displayList]);
+
+  const openDetail = (tx: Transaction) => setSelected(tx);
 
   return (
     <div className="flex flex-col gap-3">
@@ -142,7 +151,8 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
         <p className="mt-1 text-xs text-neutral-500">
           10 transactions simulées (2 frauduleuses en{' '}
           <span className="font-semibold text-red-600">rouge</span>, flux normaux en{' '}
-          <span className="font-semibold text-mk-blue">bleu</span>).
+          <span className="font-semibold text-mk-blue">bleu</span>). Cliquez une ligne ou un point
+          pour ouvrir le détail.
         </p>
       </div>
 
@@ -151,7 +161,7 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
           <div className="border-b border-neutral-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-neutral-900">Transactions</h2>
             <p className="mt-0.5 text-xs text-neutral-500">
-              {displayList.length} affichée{displayList.length !== 1 ? 's' : ''}
+              {displayList.length} affichée{displayList.length !== 1 ? 's' : ''} — clic = détail
             </p>
           </div>
           <div className="max-h-[min(50vh,420px)] flex-1 overflow-y-auto p-2 lg:max-h-[min(70vh,560px)]">
@@ -164,15 +174,19 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
                   const fraud = isFraud(tx);
                   const risk = tx._api?.riskPercent;
                   const numero = m.numero_transaction?.trim() || '—';
+                  const isOpen =
+                    selected?.transaction_event.metadata.numero_transaction === numero;
                   return (
                     <li key={tx._api?.id ?? `${numero}-${i}`}>
                       <button
                         type="button"
-                        onClick={() => onNavigateToTransaction(numero)}
+                        onClick={() => openDetail(tx)}
                         className={`flex w-full flex-col gap-1 rounded-xl border px-3 py-2.5 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mk-blue ${
-                          fraud
-                            ? 'border-red-200 bg-red-50/70 hover:border-red-300 hover:bg-red-50'
-                            : 'border-transparent hover:border-neutral-200 hover:bg-neutral-50'
+                          isOpen
+                            ? 'border-mk-blue bg-sky-50 ring-1 ring-mk-blue/30'
+                            : fraud
+                              ? 'border-red-200 bg-red-50/70 hover:border-red-300 hover:bg-red-50'
+                              : 'border-transparent hover:border-neutral-200 hover:bg-neutral-50'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -236,9 +250,12 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
               <Marker key={m.key} longitude={m.lng} latitude={m.lat} anchor="center">
                 <button
                   type="button"
-                  title={`${m.role} · ${m.numero}`}
-                  onClick={() => onNavigateToTransaction(m.numero)}
-                  className={`h-3.5 w-3.5 rounded-full border-2 border-white shadow ${
+                  title={`${m.role} · ${m.numero} — voir le détail`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openDetail(m.tx);
+                  }}
+                  className={`h-3.5 w-3.5 cursor-pointer rounded-full border-2 border-white shadow transition hover:scale-150 ${
                     m.fraud ? 'bg-red-600' : 'bg-mk-blue'
                   }`}
                 />
@@ -249,6 +266,10 @@ export function TransactionMapPanel({ transactions, onNavigateToTransaction }: T
           </Map>
         </div>
       </div>
+
+      {selected && (
+        <TransactionDetailModal transaction={selected} onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }
