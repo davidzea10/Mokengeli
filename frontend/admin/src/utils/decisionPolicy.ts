@@ -52,3 +52,19 @@ export function decisionBadgeClasses(decision: string | null | undefined): strin
       return 'border-slate-200 bg-slate-50 text-slate-600';
   }
 }
+
+/**
+ * Fraude / alerte pour le tableau de bord :
+ * block/deny, challenge (OTP), ou score combiné ≥ 70 %.
+ */
+export function isFraudTransaction(tx: {
+  target_labels?: { cible_fraude?: boolean };
+  _api?: { decision?: string | null; riskPercent?: number };
+}): boolean {
+  if (tx.target_labels?.cible_fraude) return true;
+  const d = String(tx._api?.decision || '').toLowerCase();
+  if (d === 'block' || d === 'deny' || d === 'challenge') return true;
+  const risk = tx._api?.riskPercent;
+  if (typeof risk === 'number' && risk >= DECISION_THRESHOLD_BLOCK) return true;
+  return false;
+}

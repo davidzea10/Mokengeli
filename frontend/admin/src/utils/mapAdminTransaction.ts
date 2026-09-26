@@ -1,6 +1,7 @@
 import type { Transaction, TransactionPartyDisplay } from '../types';
 import type { AdminTransactionRow } from '../api/adminApi';
 import { canalToMode } from './getTransactionParties';
+import { DECISION_THRESHOLD_BLOCK } from './decisionPolicy';
 
 /** Aligné sur le backend M1 / persistance par défaut (affichage admin si colonnes NULL). */
 const MOKENGELI_GOMBE_LAT = -4.3189;
@@ -379,7 +380,8 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
 
   const blocked =
     decision === 'block' ||
-    decision === 'deny';
+    decision === 'deny' ||
+    decision === 'challenge';
   const needsOtp = decision === 'challenge';
 
   const raw = score_combine;
@@ -390,11 +392,14 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
         : Math.min(100, Math.max(0, Math.round(raw)))
       : 0;
 
+  /** Flag fraude dashboard : décision à risque OU score ≥ 70 %. */
+  const isFraudFlag = blocked || riskPercent >= DECISION_THRESHOLD_BLOCK;
+
   const idClientDisplay = name ? `${ref} (${name})` : ref;
   const numeroTx = row.numero_transaction?.trim() || row.id;
   const simulatedFeatures = buildSimulatedModelFeatures(
     `${row.id}|${numeroTx}|m2m3`,
-    blocked,
+    isFraudFlag,
   );
 
   return {
@@ -421,9 +426,9 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
       ...simulatedFeatures,
     },
     target_labels: {
-      cible_fraude: blocked,
-      cible_session_anormale: needsOtp || blocked,
-      cible_comportement_atypique: blocked,
+      cible_fraude: isFraudFlag,
+      cible_session_anormale: needsOtp || isFraudFlag,
+      cible_comportement_atypique: isFraudFlag,
     },
     _api: {
       id: row.id,

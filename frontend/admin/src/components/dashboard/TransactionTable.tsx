@@ -7,6 +7,7 @@ import {
   decisionBadgeClasses,
   decisionFromCombinedScore,
   decisionLabelFr,
+  isFraudTransaction,
 } from '../../utils/decisionPolicy';
 import { TransactionDetailModal } from './TransactionDetailModal';
 
@@ -252,12 +253,17 @@ export function TransactionTable({
               const p = getTransactionParties(tx);
               const decision =
                 tx._api?.decision ?? decisionFromCombinedScore(riskScore);
+              const isFraudRow = isFraudTransaction(tx);
 
               return (
                 <tr
                   key={tx._api?.id ?? meta.numero_transaction ?? index}
-                  className={`group cursor-pointer transition-colors hover:bg-amber-50/45 ${
-                    index % 2 === 0 ? 'bg-white' : 'bg-slate-50/35'
+                  className={`group cursor-pointer transition-colors ${
+                    isFraudRow
+                      ? 'bg-red-50/90 hover:bg-red-100/90'
+                      : index % 2 === 0
+                        ? 'bg-white hover:bg-amber-50/45'
+                        : 'bg-slate-50/35 hover:bg-amber-50/45'
                   }`}
                   onClick={() => {
                     setSelectedTransaction(tx);
@@ -342,7 +348,7 @@ export function TransactionTable({
                     </span>
                   </td>
                   <td className="px-3 py-3 pr-4 sm:px-4">
-                    {tx.target_labels.cible_fraude || decision === 'block' || decision === 'deny' ? (
+                    {isFraudRow || decision === 'block' || decision === 'deny' ? (
                       <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-800 sm:text-xs">
                         <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                         Fraude

@@ -1,4 +1,5 @@
 import type { Transaction } from '../types';
+import { isFraudTransaction } from './decisionPolicy';
 
 const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
@@ -36,7 +37,7 @@ export function buildLast7DaysChart(txs: Transaction[]): { date: string; value: 
     const b = buckets.find((x) => x.key === key);
     if (!b) return;
     b.value += 1;
-    if (tx.target_labels.cible_fraude) b.fraud += 1;
+    if (isFraudTransaction(tx)) b.fraud += 1;
   });
 
   return buckets.map(({ date, value, fraud }) => ({ date, value, fraud }));

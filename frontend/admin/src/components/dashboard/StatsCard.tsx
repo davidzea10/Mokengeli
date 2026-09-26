@@ -5,9 +5,19 @@ interface StatsCardProps {
   changeLabel?: string;
   icon: React.ReactNode;
   trend?: 'up' | 'down' | 'neutral';
+  /** Mise en avant rouge (ex. fraudes détectées). */
+  tone?: 'default' | 'danger';
 }
 
-export function StatsCard({ title, value, change, changeLabel, icon, trend = 'neutral' }: StatsCardProps) {
+export function StatsCard({
+  title,
+  value,
+  change,
+  changeLabel,
+  icon,
+  trend = 'neutral',
+  tone = 'default',
+}: StatsCardProps) {
   const trendColors = {
     up: 'text-emerald-600 bg-emerald-50',
     down: 'text-red-600 bg-red-50',
@@ -20,12 +30,22 @@ export function StatsCard({ title, value, change, changeLabel, icon, trend = 'ne
     neutral: 'M5 12h14',
   };
 
+  const isDanger = tone === 'danger';
+
   return (
-    <div className="bg-white rounded-xl p-6 border border-neutral-200 shadow-sm hover:shadow-md transition-shadow duration-300">
+    <div
+      className={`rounded-xl p-6 border shadow-sm hover:shadow-md transition-shadow duration-300 ${
+        isDanger
+          ? 'border-red-200 bg-red-50/80'
+          : 'border-neutral-200 bg-white'
+      }`}
+    >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-neutral-500 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-mk-ink">{value}</p>
+          <p className={`text-sm font-medium mb-1 ${isDanger ? 'text-red-700' : 'text-neutral-500'}`}>
+            {title}
+          </p>
+          <p className={`text-3xl font-bold ${isDanger ? 'text-red-700' : 'text-mk-ink'}`}>{value}</p>
           {change !== undefined && (
             <div className="flex items-center gap-2 mt-3">
               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${trendColors[trend]}`}>
@@ -38,7 +58,11 @@ export function StatsCard({ title, value, change, changeLabel, icon, trend = 'ne
             </div>
           )}
         </div>
-        <div className="w-12 h-12 rounded-xl bg-mk-blue-muted flex items-center justify-center text-mk-blue-dark">
+        <div
+          className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+            isDanger ? 'bg-red-100 text-red-700' : 'bg-mk-blue-muted text-mk-blue-dark'
+          }`}
+        >
           {icon}
         </div>
       </div>

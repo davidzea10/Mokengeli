@@ -16,6 +16,7 @@ import { fetchAdminTransactions, fetchAdminAlerts } from '../api/adminApi';
 import { mapAdminRowToTransaction } from '../utils/mapAdminTransaction';
 import { buildLast7DaysChart } from '../utils/buildDashboardChart';
 import { getTransactionRiskPercent } from '../utils/transactionRiskScore';
+import { isFraudTransaction } from '../utils/decisionPolicy';
 
 /** Intervalle de rafraîchissement automatique sur le tableau de bord (ms). */
 const DASHBOARD_POLL_MS = 12_000;
@@ -320,7 +321,7 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
         riskScore: 0,
       };
     }
-    const fraudCount = txs.filter((t) => t.target_labels.cible_fraude).length;
+    const fraudCount = txs.filter((t) => isFraudTransaction(t)).length;
     const risks = txs.map(getTransactionRiskPercent);
     const avgRisk = Math.round(risks.reduce((a, b) => a + b, 0) / n);
     return {
@@ -347,10 +348,10 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
         fraudPct: 0,
       };
     }
-    const fraud = txs.filter((t) => t.target_labels.cible_fraude).length;
+    const fraud = txs.filter((t) => isFraudTransaction(t)).length;
     const suspect = txs.filter((t) => {
       const r = getTransactionRiskPercent(t);
-      return !t.target_labels.cible_fraude && r >= 40 && r < 75;
+      return !isFraudTransaction(t) && r >= 40 && r < 70;
     }).length;
     const validated = n - fraud - suspect;
     return {
@@ -363,7 +364,7 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
 
   const analyticsTx = useMemo(() => {
     const n = remoteTransactions.length;
-    const fraud = remoteTransactions.filter((t) => t.target_labels.cible_fraude).length;
+    const fraud = remoteTransactions.filter((t) => isFraudTransaction(t)).length;
     return {
       n,
       fraud,
@@ -519,6 +520,7 @@ export function Dashboard({ activeTab: initialTab }: DashboardProps) {
                   title="Fraudes Détectées"
                   value={stats.fraudDetected}
                   trend="down"
+                  tone={stats.fraudDetected > 0 ? 'danger' : 'default'}
                   icon={
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
