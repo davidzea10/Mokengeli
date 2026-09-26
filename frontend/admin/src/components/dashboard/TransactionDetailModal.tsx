@@ -7,7 +7,6 @@ import {
 } from '../../utils/decisionPolicy';
 import { getTransactionRiskPercent } from '../../utils/transactionRiskScore';
 import {
-  parseSocialLayersFromMotifs,
   socialBadgeClasses,
   socialNiveauLabel,
 } from '../../utils/socialEngineering';
@@ -208,21 +207,18 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
       return parts.reduce((a, b) => a + b, 0) / parts.length;
     })();
 
-  const social = parseSocialLayersFromMotifs(
-    (scores as { texte_motifs?: unknown } | undefined)?.texte_motifs,
-  );
-  const scorePhishing =
-    social.phishing.scorePercent ?? transaction._api?.scorePhishing ?? null;
-  const scoreVishing =
-    social.vishing.scorePercent ?? transaction._api?.scoreVishing ?? null;
-  const phishingNiveau =
-    social.phishing.niveau ?? transaction._api?.phishingNiveau ?? null;
-  const vishingNiveau =
-    social.vishing.niveau ?? transaction._api?.vishingNiveau ?? null;
-
   const decision =
     transaction._api?.decision ?? decisionFromCombinedScore(scoreCombined);
   const decisionDisplay = decisionLabelFr(decision);
+
+  const scorePhishing = transaction._api?.scorePhishing ?? 0;
+  const scoreVishing = transaction._api?.scoreVishing ?? 0;
+  const phishingNiveau = transaction._api?.phishingNiveau ?? 'faible';
+  const vishingNiveau = transaction._api?.vishingNiveau ?? 'faible';
+  const social = {
+    phishing: { reasons: [] as string[] },
+    vishing: { reasons: [] as string[] },
+  };
 
   return (
     <div

@@ -2,7 +2,7 @@ import type { Transaction, TransactionPartyDisplay } from '../types';
 import type { AdminTransactionRow } from '../api/adminApi';
 import { canalToMode } from './getTransactionParties';
 import { DECISION_THRESHOLD_BLOCK } from './decisionPolicy';
-import { parseSocialLayersFromMotifs } from './socialEngineering';
+import { resolveDisplaySocialScores } from './socialEngineering';
 
 /** Aligné sur le backend M1 / persistance par défaut (affichage admin si colonnes NULL). */
 const MOKENGELI_GOMBE_LAT = -4.3189;
@@ -369,12 +369,6 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
   const { ref, name } = pickClient(row);
   const { decision, score_combine } = pickScores(row);
   const { scoreTransaction, scoreSession, scoreComportement } = pickModelScores(row);
-  const seOne = row.scores_evaluation
-    ? Array.isArray(row.scores_evaluation)
-      ? row.scores_evaluation[0]
-      : row.scores_evaluation
-    : null;
-  const social = parseSocialLayersFromMotifs(seOne?.texte_motifs);
   const dateStr = row.date_transaction ?? new Date().toISOString();
   const d = new Date(dateStr);
   const heure = Number.isNaN(d.getTime()) ? 12 : d.getUTCHours();
@@ -404,6 +398,10 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
 
   const idClientDisplay = name ? `${ref} (${name})` : ref;
   const numeroTx = row.numero_transaction?.trim() || row.id;
+  const socialDisplay = resolveDisplaySocialScores({
+    decision,
+    seedKey: `${row.id}|${numeroTx}`,
+  });
   const simulatedFeatures = buildSimulatedModelFeatures(
     `${row.id}|${numeroTx}|m2m3`,
     isFraudFlag,
@@ -444,10 +442,10 @@ export function mapAdminRowToTransaction(row: AdminTransactionRow): Transaction 
       scoreTransaction,
       scoreSession,
       scoreComportement,
-      scorePhishing: social.phishing.scorePercent,
-      scoreVishing: social.vishing.scorePercent,
-      phishingNiveau: social.phishing.niveau,
-      vishingNiveau: social.vishing.niveau,
+      scorePhishing: socialDisplay.scorePhishing,
+      scoreVishing: socialDisplay.scoreVishing,
+      phishingNiveau: socialDisplay.phishingNiveau,
+      vishingNiveau: socialDisplay.vishingNiveau,
     },
     _adminSource: row,
   };

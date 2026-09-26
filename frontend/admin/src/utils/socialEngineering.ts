@@ -109,3 +109,76 @@ export function socialBadgeClasses(n: SocialNiveau | null | undefined): string {
       return 'border-slate-200 bg-slate-50 text-slate-600';
   }
 }
+
+function hashSeed(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function makeRng(seed: number) {
+  let a = seed || 1;
+  return () => {
+    a = (Math.imul(a, 1664525) + 1013904223) >>> 0;
+    return a / 4294967296;
+  };
+}
+
+function niveauFromPercent(pct: number): SocialNiveau {
+  if (pct >= 70) return 'eleve';
+  if (pct >= 40) return 'moyen';
+  return 'faible';
+}
+
+/**
+ * Affichage admin phishing / vishing :
+ * - transaction passée (allow) → 0 %
+ * - transaction bloquée (block / deny) → valeurs aléatoires stables (élevées)
+ * - challenge → valeurs aléatoires stables (zone OTP)
+ */
+export function resolveDisplaySocialScores(opts: {
+  decision: string | null | undefined;
+  seedKey: string;
+}): {
+  scorePhishing: number;
+  scoreVishing: number;
+  phishingNiveau: SocialNiveau;
+  vishingNiveau: SocialNiveau;
+} {
+  const d = String(opts.decision || '').toLowerCase();
+  const isBlock = d === 'block' || d === 'deny';
+  const isChallenge = d === 'challenge';
+
+  if (!isBlock && !isChallenge) {
+    return {
+      scorePhishing: 0,
+      scoreVishing: 0,
+      phishingNiveau: 'faible',
+      vishingNiveau: 'faible',
+    };
+  }
+
+  const r = makeRng(hashSeed(`phvi|${opts.seedKey}`));
+  let scorePhishing: number;
+  let scoreVishing: number;
+
+  if (isBlock) {
+    // Bloquée : scores élevés aléatoires (70–100)
+    scorePhishing = Math.round(70 + r() * 30);
+    scoreVishing = Math.round(70 + r() * 30);
+  } else {
+    // OTP : zone moyenne (40–69)
+    scorePhishing = Math.round(40 + r() * 29);
+    scoreVishing = Math.round(40 + r() * 29);
+  }
+
+  return {
+    scorePhishing,
+    scoreVishing,
+    phishingNiveau: niveauFromPercent(scorePhishing),
+    vishingNiveau: niveauFromPercent(scoreVishing),
+  };
+}
