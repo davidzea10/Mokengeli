@@ -15,6 +15,8 @@ export const API_ROUTES = {
   meNotifications: '/api/v1/me/notifications',
   meNotificationsUnread: '/api/v1/me/notifications/unread-count',
   meNotificationsReadAll: '/api/v1/me/notifications/read-all',
+  /** Assistant conseil RAG Lisungi */
+  lisungiAnalyze: '/api/v1/lisungi/analyze',
 } as const;
 
 /** POST /api/v1/client/login — `name` = identifiant (référence client, e-mail ou téléphone) */

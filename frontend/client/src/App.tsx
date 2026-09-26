@@ -11,6 +11,7 @@ import { TransferPage } from './pages/TransferPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { LisungiPage } from './pages/LisungiPage';
 
 function RootRedirect() {
   const { isLoggedIn } = useClientSession();
@@ -36,6 +37,7 @@ function AppRoutes() {
         <Route path="operations" element={<TransferPage />} />
         <Route path="cartes" element={<CardsPage />} />
         <Route path="historique" element={<HistoryPage />} />
+        <Route path="lisungi" element={<LisungiPage />} />
         <Route path="profil" element={<ProfilePage />} />
       </Route>
       <Route path="/" element={<RootRedirect />} />

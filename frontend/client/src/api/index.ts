@@ -10,6 +10,7 @@ export {
   fetchNotificationsList,
   postNotificationsReadAll,
   patchNotificationReadOne,
+  analyzeWithLisungi,
   getApiBaseUrl,
   isApiConfigured,
 } from './clientPortal';
@@ -22,6 +23,8 @@ export type {
   EvaluateTransactionApiData,
   NotificationRow,
   NotificationPayload,
+  LisungiAnalyzeData,
+  LisungiAdvice,
 } from './clientPortal';
 export { API_ROUTES } from './contracts';
 export type {

@@ -38,6 +38,13 @@ export function HomePage() {
           <span className="text-sm font-medium text-gray-800">Envoyer</span>
         </Link>
         <Link
+          to="/app/lisungi"
+          className="rounded-xl bg-gradient-to-br from-mk-blue to-mk-blue-dark p-4 shadow-md shadow-mk-blue/25 border border-mk-blue/30 hover:shadow-lg transition flex flex-col items-center gap-2 text-center text-white"
+        >
+          <span className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold text-lg">L</span>
+          <span className="text-sm font-semibold">Lisungi</span>
+        </Link>
+        <Link
           to="/app/comptes"
           className="rounded-xl bg-white p-4 shadow-sm border border-gray-100 hover:border-mk-blue/50 hover:shadow-md transition flex flex-col items-center gap-2 text-center"
         >
@@ -55,16 +62,29 @@ export function HomePage() {
           </svg>
           <span className="text-sm font-medium text-gray-800">Mes cartes</span>
         </Link>
-        <Link
-          to="/app/profil"
-          className="rounded-xl bg-white p-4 shadow-sm border border-gray-100 hover:border-mk-blue/50 hover:shadow-md transition flex flex-col items-center gap-2 text-center"
-        >
-          <svg className="w-8 h-8 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span className="text-sm font-medium text-gray-800">Profil</span>
-        </Link>
       </div>
+
+      <Link
+        to="/app/lisungi"
+        className={`flex items-center gap-3 rounded-2xl border p-4 transition hover:shadow-md ${
+          isDark
+            ? 'border-mk-blue/40 bg-mk-blue/10 hover:bg-mk-blue/15'
+            : 'border-mk-blue/30 bg-gradient-to-r from-sky-50 to-white hover:border-mk-blue/50'
+        }`}
+      >
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-mk-blue text-white font-bold shadow-sm">
+          L
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Lisungi</p>
+          <p className={`text-xs leading-relaxed ${isDark ? 'text-neutral-400' : 'text-gray-600'}`}>
+            Analyse vos transactions et marchands · remarques, conseils et recommandations
+          </p>
+        </div>
+        <svg className={`h-5 w-5 shrink-0 ${isDark ? 'text-mk-blue-bright' : 'text-mk-blue'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
 
       <div
         className={`rounded-xl border border-dashed p-4 sm:p-5 ${
@@ -77,6 +97,18 @@ export function HomePage() {
           numéro enregistré lorsque ce service est activé.
         </p>
         <p className="mt-3 text-xs text-gray-500">Aucun code en attente pour le moment.</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Link
+          to="/app/profil"
+          className="rounded-xl bg-white p-4 shadow-sm border border-gray-100 hover:border-mk-blue/50 hover:shadow-md transition flex flex-col items-center gap-2 text-center sm:flex-row sm:text-left"
+        >
+          <svg className="w-8 h-8 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          <span className="text-sm font-medium text-gray-800">Profil</span>
+        </Link>
       </div>
     </div>
   );

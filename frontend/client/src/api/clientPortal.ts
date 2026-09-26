@@ -516,3 +516,57 @@ export async function patchNotificationReadOne(
     return { ok: false, message: msg };
   }
 }
+
+export interface LisungiAdvice {
+  resume: string;
+  remarques: string[];
+  conseils: string[];
+  recommandations: string[];
+  mode?: string;
+}
+
+export interface LisungiAnalyzeData {
+  assistant: string;
+  question: string | null;
+  generated_at: string;
+  advice: LisungiAdvice;
+  context_preview?: {
+    nb_transactions?: number;
+    solde_total?: number;
+    avg_risk_pct?: number | null;
+    top_marchands?: { name: string; count: number; total: number }[];
+    decisions?: Record<string, number>;
+  };
+}
+
+/** POST /api/v1/lisungi/analyze — conseils RAG sur le comportement transactionnel. */
+export async function analyzeWithLisungi(
+  referenceClient: string,
+  question?: string
+): Promise<{ ok: true; data: LisungiAnalyzeData } | LoginApiError> {
+  if (!isApiConfigured()) {
+    return { ok: false, message: 'VITE_API_BASE_URL non défini' };
+  }
+  try {
+    const res = await postJson(API_ROUTES.lisungiAnalyze, {
+      reference_client: referenceClient.trim(),
+      question: question?.trim() || undefined,
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      data?: LisungiAnalyzeData;
+      error?: { message?: string; code?: string };
+    };
+    if (!res.ok || json.success === false || !json.data?.advice) {
+      return {
+        ok: false,
+        message: json.error?.message || `Erreur HTTP ${res.status}`,
+        code: json.error?.code,
+      };
+    }
+    return { ok: true, data: json.data };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Erreur réseau';
+    return { ok: false, message: msg };
+  }
+}

@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
 import { buildM1TransactionFeatures, runM1PythonPredict } from './m1Features.js';
 import { scoreM2Session, scoreM3Behavior, combineScores } from './m2m3Scores.js';
+import { runLisungiAdvice } from './lisungiAdvice.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -1575,9 +1576,97 @@ app.get('/api/v1/admin/alerts', async (_req, res) => {
   });
 });
 
+/**
+ * POST /api/v1/lisungi/analyze — RAG conseil client (historique + marchands + scores).
+ * Body: { reference_client, question? }
+ */
+app.post('/api/v1/lisungi/analyze', async (req, res) => {
+  try {
+    const referenceClient = String(req.body?.reference_client || '').trim();
+    const question = String(req.body?.question || '').trim();
+    if (!referenceClient) {
+      return res.status(422).json({
+        success: false,
+        error: { message: 'reference_client requis', code: 'VALIDATION_ERROR' },
+      });
+    }
+
+    const full = await findClientWithComptes(referenceClient);
+    if (full.error) {
+      return res.status(500).json({
+        success: false,
+        error: { message: full.error, code: 'DATABASE_ERROR' },
+      });
+    }
+    if (!full.data?.id) {
+      return res.status(404).json({
+        success: false,
+        error: { message: 'Client introuvable', code: 'CLIENT_NOT_FOUND' },
+      });
+    }
+
+    const clientId = full.data.id;
+    const { data: txs, error: txErr } = await supabase
+      .from('transactions')
+      .select(
+        `
+        id,
+        numero_transaction,
+        date_transaction,
+        montant,
+        devise,
+        type_transaction,
+        canal,
+        reference_beneficiaire,
+        scores_evaluation (
+          decision,
+          score_combine,
+          score_modele_transaction,
+          score_modele_session,
+          score_modele_comportement
+        )
+      `,
+      )
+      .eq('client_id', clientId)
+      .order('date_transaction', { ascending: false })
+      .limit(60);
+
+    if (txErr) {
+      console.error('[lisungi/analyze] txs', txErr);
+      return res.status(500).json({
+        success: false,
+        error: { message: txErr.message, code: 'DATABASE_ERROR' },
+      });
+    }
+
+    const result = await runLisungiAdvice({
+      client: full.data,
+      comptes: full.data.comptes_bancaires || [],
+      transactions: txs || [],
+      question,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        assistant: 'Lisungi',
+        question: question || null,
+        generated_at: new Date().toISOString(),
+        ...result,
+      },
+    });
+  } catch (err) {
+    console.error('[lisungi/analyze]', err);
+    return res.status(500).json({
+      success: false,
+      error: { message: err?.message || 'Erreur serveur', code: 'INTERNAL_ERROR' },
+    });
+  }
+});
+
 const server = app.listen(PORT, () => {
   console.log(
-    `Mokengeli backend http://localhost:${PORT} (POST /api/v1/client/login, GET /api/v1/me, POST /api/v1/transactions/evaluate, GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
+    `Mokengeli backend http://localhost:${PORT} (POST /api/v1/client/login, GET /api/v1/me, POST /api/v1/transactions/evaluate, POST /api/v1/lisungi/analyze, GET /api/v1/admin/transactions, GET /api/v1/admin/alerts)`,
   );
   console.log('[cors] Access-Control-Allow-Origin=*');
 });
