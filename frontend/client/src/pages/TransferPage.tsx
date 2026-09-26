@@ -376,24 +376,6 @@ export function TransferPage() {
               />
               Connexion inhabituelle
             </label>
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.tor_detecte}
-                onChange={(e) => setFormData({ ...formData, tor_detecte: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300 text-mk-blue focus:ring-mk-blue/30"
-              />
-              Tor (forcé)
-            </label>
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.vpn_detecte}
-                onChange={(e) => setFormData({ ...formData, vpn_detecte: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300 text-mk-blue focus:ring-mk-blue/30"
-              />
-              VPN (forcé)
-            </label>
           </div>
 
           <button
