@@ -18,13 +18,56 @@ function formatScalar(v: unknown): string {
   return JSON.stringify(v);
 }
 
-/** Affiche un score modèle 0–1 ou 0–100 comme pourcentage entier. */
+/** Affiche un score modèle 0–1 ou 0–100 comme pourcentage entier (échelle 0–100 %). */
 function formatModelPercent(raw: unknown): string {
   if (raw == null || raw === '') return '—';
   const n = Number(raw);
   if (!Number.isFinite(n)) return '—';
   const pct = n <= 1 ? n * 100 : n;
-  return `${Math.round(pct)}%`;
+  return `${Math.round(Math.min(100, Math.max(0, pct)))} %`;
+}
+
+/** Convertit score 0–1 ou 0–100 en nombre 0–100 (pour calculs). */
+function toPercentNumber(raw: unknown): number | null {
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const pct = n <= 1 ? n * 100 : n;
+  return Math.min(100, Math.max(0, pct));
+}
+
+/** Clés de scores_evaluation à afficher en % (0–100). */
+const SCORE_PERCENT_KEYS = new Set([
+  'score_combine',
+  'score_modele_transaction',
+  'score_modele_session',
+  'score_modele_comportement',
+]);
+
+function ScoresEvaluationDetails({ data }: { data: Record<string, unknown> }) {
+  const preferredOrder = [
+    'decision',
+    'score_combine',
+    'score_modele_transaction',
+    'score_modele_session',
+    'score_modele_comportement',
+  ];
+  const keys = [
+    ...preferredOrder.filter((k) => k in data),
+    ...Object.keys(data).filter((k) => !preferredOrder.includes(k) && data[k] !== undefined),
+  ];
+  return (
+    <dl>
+      {keys.map((k) => {
+        const v = data[k];
+        const label = humanizeKey(k);
+        if (SCORE_PERCENT_KEYS.has(k)) {
+          return <DetailRow key={k} label={label} value={formatModelPercent(v)} />;
+        }
+        return <DetailRow key={k} label={label} value={formatUnknown(v)} />;
+      })}
+    </dl>
+  );
 }
 
 function formatUnknown(v: unknown): ReactNode {
@@ -133,6 +176,28 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
 
   const decision = transaction._api?.decision ?? null;
 
+  /** Scores DB ou fallback `_api` (M1/M2/M3 tous actifs — plus de libellé « à brancher »). */
+  const scoreM1 =
+    (scores as { score_modele_transaction?: unknown } | undefined)?.score_modele_transaction ??
+    transaction._api?.scoreTransaction;
+  const scoreM2 =
+    (scores as { score_modele_session?: unknown } | undefined)?.score_modele_session ??
+    transaction._api?.scoreSession;
+  const scoreM3 =
+    (scores as { score_modele_comportement?: unknown } | undefined)?.score_modele_comportement ??
+    transaction._api?.scoreComportement;
+  const scoreCombinedRaw =
+    (scores as { score_combine?: unknown } | undefined)?.score_combine ?? riskScore;
+  const scoreCombined =
+    toPercentNumber(scoreCombinedRaw) ??
+    (() => {
+      const parts = [scoreM1, scoreM2, scoreM3]
+        .map(toPercentNumber)
+        .filter((x): x is number => x != null);
+      if (parts.length === 0) return null;
+      return parts.reduce((a, b) => a + b, 0) / parts.length;
+    })();
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
@@ -172,8 +237,8 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
                   </span>
                 )}
                 <span className="text-[10px] text-slate-500">
-                  Tx {transaction._api?.scoreTransaction ?? '—'} · S {transaction._api?.scoreSession ?? '—'} · C{' '}
-                  {transaction._api?.scoreComportement ?? '—'}
+                  Combiné {formatModelPercent(scoreCombined)} · M1 {formatModelPercent(scoreM1)} · M2{' '}
+                  {formatModelPercent(scoreM2)} · M3 {formatModelPercent(scoreM3)}
                 </span>
               </div>
             </div>
@@ -216,53 +281,88 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
               </div>
             )}
 
-            {row && (
-              <>
-                <SectionCard
-                  title="Modèles IA"
-                  subtitle="M1 transaction · M2 session · M3 comportement — scores combinés pour la décision."
-                  icon={
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 0H3m18 0h-2m2 0h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
-                      />
-                    </svg>
-                  }
-                >
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+            <SectionCard
+              title="Modèles IA"
+              subtitle="Score combiné puis M1 · M2 · M3 — échelle 0–100 %."
+              icon={
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 0H3m18 0h-2m2 0h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                  />
+                </svg>
+              }
+            >
+              <div className="space-y-3">
+                <div className="rounded-xl border border-mk-blue/30 bg-gradient-to-br from-sky-100 to-white p-4 shadow-sm ring-1 ring-sky-900/10">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-950">
+                      Score combiné
+                    </p>
+                    <span className="rounded-full bg-sky-600 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                      Décision
+                    </span>
+                  </div>
+                  <p className="mt-2 text-4xl font-bold tabular-nums text-slate-900">
+                    {formatModelPercent(scoreCombined)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Synthèse M1 + M2 + M3
+                    {decision ? ` · ${decision}` : ''}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+                    <div className="flex items-center justify-between gap-2">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900/70">
                         1 · Transaction (M1)
                       </p>
-                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
-                        {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_transaction?: unknown }).score_modele_transaction : undefined)}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">Risque frauduleux estimé</p>
+                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-800">
+                        Actif
+                      </span>
                     </div>
-                    <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+                    <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
+                      {formatModelPercent(scoreM1)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">Risque frauduleux estimé</p>
+                  </div>
+                  <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+                    <div className="flex items-center justify-between gap-2">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900/70">
                         2 · Session (M2)
                       </p>
-                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
-                        {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_session?: unknown }).score_modele_session : undefined)}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">Anomalie de session</p>
+                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-800">
+                        Actif
+                      </span>
                     </div>
-                    <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+                    <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
+                      {formatModelPercent(scoreM2)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">Anomalie de session</p>
+                  </div>
+                  <div className="rounded-xl border border-sky-200/90 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm ring-1 ring-sky-900/5">
+                    <div className="flex items-center justify-between gap-2">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-900/70">
                         3 · Comportement (M3)
                       </p>
-                      <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
-                        {formatModelPercent(scores && typeof scores === 'object' ? (scores as { score_modele_comportement?: unknown }).score_modele_comportement : undefined)}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">Comportement atypique</p>
+                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-800">
+                        Actif
+                      </span>
                     </div>
+                    <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">
+                      {formatModelPercent(scoreM3)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">Comportement atypique</p>
                   </div>
-                </SectionCard>
+                </div>
+              </div>
+            </SectionCard>
 
+            {row && (
+              <>
                 <SectionCard
                   title="Transaction (table)"
                   subtitle="Champs scalaires issus de la base"
@@ -365,7 +465,7 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
 
                 <SectionCard
                   title="Évaluation & scores"
-                  subtitle="scores_evaluation"
+                  subtitle="scores_evaluation — échelle 0–100 %"
                   icon={
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -373,7 +473,7 @@ export function TransactionDetailModal({ transaction, onClose }: TransactionDeta
                   }
                 >
                   {scores && typeof scores === 'object' ? (
-                    <ObjectDetails data={scores as Record<string, unknown>} />
+                    <ScoresEvaluationDetails data={scores as Record<string, unknown>} />
                   ) : (
                     <p className="text-sm text-slate-500">Aucune ligne scores_evaluation jointe.</p>
                   )}
